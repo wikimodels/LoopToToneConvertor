@@ -1,0 +1,9 @@
+﻿{
+    "path":  "C:\\Python311\\python.exe",
+    "description":  "Starts the LoopToToneConvertor engine on 127.0.0.1:8002",
+    "name":  "com.looptotone.server",
+    "allowed_origins":  [
+                            "chrome-extension://koehakhfofhdlhghiheiahnjgmempgdm/"
+                        ],
+    "type":  "stdio"
+}

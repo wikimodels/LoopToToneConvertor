@@ -35,13 +35,80 @@ function control(action) {
   }).catch(() => {});
 }
 
+function setServerUi(alive, busy) {
+  const el = $('srvStatus');
+  const btn = $('btnStartServer');
+  if (alive) {
+    el.textContent = 'сервер: работает';
+    btn.disabled = true;
+    btn.textContent = 'Запустить сервер';
+    $('srvHint').classList.add('hidden');
+  } else {
+    btn.disabled = busy;
+    btn.textContent = busy ? 'запускаю…' : 'Запустить сервер';
+    el.textContent = busy ? 'сервер: запускаю…' : 'сервер: не запущен';
+  }
+}
+
+async function pingEngine() {
+  try {
+    await api('/api/state');
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function copyText(txt) {
+  try {
+    navigator.clipboard.writeText(txt);
+  } catch (e) { /* ignore */ }
+}
+
+async function ensureServer() {
+  if (await pingEngine()) {
+    setServerUi(true, false);
+    return true;
+  }
+  setServerUi(false, true);
+  let resp;
+  try {
+    resp = await chrome.runtime.sendMessage({ type: 'start-server' });
+  } catch (e) {
+    resp = { ok: false, error: String(e && e.message || e) };
+  }
+  if (!resp || !resp.ok) {
+    setServerUi(false, false);
+    const hint = $('srvHint');
+    hint.classList.remove('hidden');
+    hint.innerHTML = `Хост не смог запустить движок. Если host не установлен, выполните в командной строке (из папки проекта):<br><code>install_host.cmd ${chrome.runtime.id}</code><br><button id="btnCopyCmd">Скопировать команду</button><span id="srvHintMsg"></span>`;
+    $('btnCopyCmd').addEventListener('click', () => copyText(`install_host.cmd ${chrome.runtime.id}`));
+    return false;
+  }
+  const deadline = Date.now() + 20000;
+  while (Date.now() < deadline) {
+    if (await pingEngine()) {
+      setServerUi(true, false);
+      $('srvHint').classList.add('hidden');
+      return true;
+    }
+    await new Promise(r => setTimeout(r, 800));
+  }
+  setServerUi(false, false);
+  $('srvHint').classList.remove('hidden');
+  $('srvHint').textContent = 'Движок не ответил за 20 секунд. Посмотрите server.log.';
+  return false;
+}
+
 async function refresh() {
   try {
     state = await api('/api/state');
+    setServerUi(true, false);
     render();
   } catch (e) {
+    setServerUi(false, false);
     $('apiBadge').className = 'badge bad';
-    $('apiBadge').textContent = 'движок: недоступен';
+    $('apiBadge').textContent = 'движок: не запущен';
     $('acBadge').className = 'badge unknown';
     $('acBadge').textContent = 'AppCheck: —';
   }
@@ -195,7 +262,15 @@ async function saveSettings() {
 
 document.addEventListener('click', (e) => {
   const t = e.target;
-  if (t.id === 'btnRun') control(state.running ? 'stop' : 'start');
+  if (t.id === 'btnRun') {
+    (async () => {
+      t.disabled = true;
+      if (!await ensureServer()) { t.disabled = false; return; }
+      await control(state.running ? 'stop' : 'start').catch(() => {});
+      t.disabled = false;
+    })();
+  }
+  else if (t.id === 'btnStartServer') ensureServer();
   else if (t.id === 'btnPause') control('pause');
   else if (t.id === 'btnResume') control('resume');
   else if (t.id === 'btnRescan') control('rescan');

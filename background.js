@@ -43,6 +43,8 @@ const deliver = async (token) => {
   }
 };
 
+const HOST = "com.looptotone.server";
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && msg.type === "appcheck-token" && typeof msg.token === "string") {
     deliver(msg.token);
@@ -53,6 +55,35 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         deliver(data.pendingToken);
       }
     });
+  }
+  if (msg && msg.type === "start-server") {
+    let port;
+    try {
+      port = chrome.runtime.connectNative(HOST);
+    } catch (e) {
+      sendResponse({ ok: false, error: String(e && e.message || e) });
+      return;
+    }
+    let responded = false;
+    port.onMessage.addListener((resp) => {
+      if (responded) return;
+      responded = true;
+      sendResponse(resp || { ok: false, error: "host: empty reply" });
+      try {
+        port.disconnect();
+      } catch (e) { /* ignore */ }
+    });
+    port.onDisconnect.addListener(() => {
+      if (responded) return;
+      responded = true;
+      const err = chrome.runtime.lastError && chrome.runtime.lastError.message;
+      sendResponse({
+        ok: false,
+        error: err || "native host disconnected (install_host.cmd not run?)",
+      });
+    });
+    port.postMessage({});
+    return true;
   }
 });
 

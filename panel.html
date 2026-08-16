@@ -18,6 +18,14 @@
 
 <main>
   <section class="card">
+    <div class="srv-row">
+      <span id="srvStatus" class="dim">сервер: проверка…</span>
+      <button id="btnStartServer">Запустить сервер</button>
+    </div>
+    <div id="srvHint" class="srv-hint hidden"></div>
+  </section>
+
+  <section class="card">
     <div class="stats">
       <div class="stat"><span class="num" id="stTotal">0</span><span class="lbl">всего</span></div>
       <div class="stat"><span class="num" id="stDone">0</span><span class="lbl">готово</span></div>
