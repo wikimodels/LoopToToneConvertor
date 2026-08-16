@@ -74,4 +74,9 @@ chrome.runtime.onInstalled.addListener(() => {
   } catch (e) {
     /* ignore */
   }
+  try {
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  } catch (e) {
+    /* older browsers: fall back to popup */
+  }
 });
