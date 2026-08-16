@@ -205,6 +205,7 @@ def main():
     args = ap.parse_args()
     ENGINE.log("info", f"LoopToToneConvertor starting on http://localhost:{args.port}")
     ENGINE.log("info", f"source={ENGINE.config['source']} output={ENGINE.config['output']}")
+    ENGINE.scan_source()
     if ENGINE.config.get("autostart"):
         ENGINE.start()
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
