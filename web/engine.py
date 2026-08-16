@@ -567,7 +567,7 @@ class Engine:
         with self.lock:
             self.state["files"][name]["step"] = "convert"
         tone = self._voicing(analysis)
-        tone["name"] = f"{Path(name).stem}_smoothed"
+        tone["name"] = Path(name).stem
         tone["instrument"] = "piano"
         tone["swing"] = 0.0
         tone["key"] = tone.get("key") or analysis.get("key") or ""
