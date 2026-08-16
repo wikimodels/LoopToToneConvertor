@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "LoopToToneConvertor Bridge",
+  "name": "LoopToToneConvertor",
   "version": "1.0.0",
   "description": "Captures the Firebase App Check token from chordmini.me and delivers it to the local LoopToToneConvertor engine (127.0.0.1:8002).",
   "permissions": ["storage"],
