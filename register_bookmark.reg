@@ -1,0 +1,12 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Software\Classes\looptone]
+@="URL:LoopToToneConvertor Protocol"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\Software\Classes\looptone\shell]
+
+[HKEY_CURRENT_USER\Software\Classes\looptone\shell\open]
+
+[HKEY_CURRENT_USER\Software\Classes\looptone\shell\open\command]
+@="wscript.exe \"D:\\GitHub\\LoopToToneConvertor\\run_silent.vbs\""

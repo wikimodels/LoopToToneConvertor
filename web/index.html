@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LoopToToneConvertor</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <div class="title">
+    <h1>LoopToTone<span>Convertor</span></h1>
+    <div id="apiBadge" class="badge unknown">API: ...</div>
+  </div>
+  <div class="controls">
+    <button id="btnRun" class="primary">Запустить</button>
+    <button id="btnPause" disabled>Пауза</button>
+    <button id="btnResume" disabled>Продолжить</button>
+    <button id="btnRescan">Пересканировать</button>
+    <button id="btnRetry" disabled>Повторить ошибки</button>
+    <button id="btnOpenOut">Открыть папку JSON</button>
+    <button id="btnOpenSrc">Папка лупов</button>
+  </div>
+</header>
+
+<main>
+  <section id="progressCard" class="card">
+    <div class="stats">
+      <div class="stat"><span class="num" id="stTotal">0</span><span class="lbl">всего</span></div>
+      <div class="stat"><span class="num" id="stDone">0</span><span class="lbl">готово</span></div>
+      <div class="stat"><span class="num" id="stWork">0</span><span class="lbl">в работе</span></div>
+      <div class="stat"><span class="num" id="stQueued">0</span><span class="lbl">в очереди</span></div>
+      <div class="stat bad"><span class="num" id="stFailed">0</span><span class="lbl">ошибки</span></div>
+      <div class="stat"><span class="num" id="stEta">&mdash;</span><span class="lbl">осталось</span></div>
+    </div>
+    <div class="bar"><div id="barFill"></div></div>
+    <div id="currentInfo" class="current">ничего не выполняется</div>
+  </section>
+
+  <section id="settingsCard" class="card">
+    <h2>Настройки</h2>
+    <div class="grid2">
+      <label>Папка лупов (source)
+        <input id="setSource" type="text">
+      </label>
+      <label>Папка JSON (output)
+        <input id="setOutput" type="text">
+      </label>
+      <label>API ChordMini
+        <input id="setApi" type="text">
+      </label>
+      <div class="grid2-inner">
+        <label>Beat модель
+          <select id="setBeatModel">
+            <option>madmom</option><option>beat-transformer</option><option>librosa</option>
+          </select>
+        </label>
+        <label>Chord модель
+          <select id="setChordModel">
+            <option>chord-cnn-lstm</option><option>btc-sl</option><option>btc-pl</option>
+          </select>
+        </label>
+      </div>
+      <label>Пауза между вызовами API, сек
+        <input id="setInterval" type="number" min="5" max="600" value="33">
+      </label>
+      <label>Определять тональность (detect-key)
+        <select id="setDetectKey"><option value="true">да</option><option value="false">нет</option></select>
+      </label>
+    </div>
+    <div class="row">
+      <button id="btnSaveSettings" class="primary">Сохранить настройки</button>
+      <span id="settingsMsg"></span>
+    </div>
+  </section>
+
+  <section id="filesCard" class="card">
+    <div class="card-head">
+      <h2>Файлы</h2>
+      <div class="filters">
+        <button data-f="all" class="on">Все</button>
+        <button data-f="pending">В очереди</button>
+        <button data-f="working">В работе</button>
+        <button data-f="done">Готово</button>
+        <button data-f="failed">Ошибки</button>
+      </div>
+    </div>
+    <table id="filesTable">
+      <thead>
+        <tr>
+          <th>Файл</th><th>Статус</th><th>Шаг</th><th>BPM</th><th>Ключ</th>
+          <th>Такт</th><th>Steps</th><th>Ноты</th><th>Аккорды</th><th>JSON</th><th></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div id="filesEmpty" class="empty">Файлов в папке лупов пока нет — добавь аудио или нажми «Пересканировать».</div>
+  </section>
+
+  <section id="logCard" class="card">
+    <div class="card-head">
+      <h2>Журнал</h2>
+      <button id="btnClearLog">очистить</button>
+    </div>
+    <div id="logBox"></div>
+  </section>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>

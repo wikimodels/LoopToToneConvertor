@@ -1,0 +1,5 @@
+state.json
+server.log
+__pycache__/
+*.pyc
+.uploadtmp/
