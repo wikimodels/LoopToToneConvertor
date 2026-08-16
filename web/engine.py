@@ -10,6 +10,7 @@ import json
 import math
 import os
 import re
+import ssl
 import threading
 import time
 import urllib.request
@@ -237,9 +238,10 @@ class Engine:
         req.add_header("Content-Type", ctype)
         req.add_header("User-Agent", "LoopToToneConvertor/1.0")
         last_err = None
+        ssl_warned = False
         for attempt in range(1, 5):
             try:
-                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                with self._open_checked(req, tag, timeout) as resp:
                     raw = resp.read()
                 data = json.loads(raw.decode("utf-8"))
                 self.log("info", f"{tag}: ok ({len(raw)} bytes)")
@@ -267,6 +269,21 @@ class Engine:
                     raise InterruptedError("stopped by user")
         raise RuntimeError(f"{tag}: failed after retries: {last_err}")
 
+    def _open_checked(self, req, tag: str, timeout: int):
+        try:
+            return urllib.request.urlopen(req, timeout=timeout)
+        except urllib.error.URLError as exc:
+            if not isinstance(exc.reason, ssl.SSLCertVerificationError):
+                raise
+            if not getattr(self, "_ssl_warned", False):
+                self._ssl_warned = True
+                self.log("warn",
+                         f"{tag}: TLS verification failed ({exc.reason}); chordmini sends a chain "
+                         f"with an expired intermediate - retrying without verification")
+            return urllib.request.urlopen(
+                req, timeout=timeout, context=ssl._create_unverified_context()
+            )
+
     def check_api(self, force: bool = False) -> bool:
         now = time.monotonic()
         if not force and now - self._api_last_check < 60:
@@ -274,7 +291,9 @@ class Engine:
         self._api_last_check = now
         try:
             url = self.config["api_base"].rstrip("/") + "/api/model-info"
-            with urllib.request.urlopen(urllib.request.Request(url, method="GET"), timeout=20) as resp:
+            with self._open_checked(
+                urllib.request.Request(url, method="GET"), "check-api", 20
+            ) as resp:
                 ok = resp.status == 200
                 if ok:
                     json.loads(resp.read().decode("utf-8"))
