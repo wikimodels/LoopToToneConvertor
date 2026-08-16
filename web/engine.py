@@ -43,6 +43,14 @@ DURATION_OPTIONS = [
     (96, "6m"), (128, "8m"), (256, "16m"),
 ]
 
+DUR_TICKS = {
+    "8n": 60, "8n.": 90, "4n": 120, "4n.": 180, "2n": 240, "2n.": 360,
+    "1m": 480, "1m.": 720, "2m": 960, "3m": 1440, "4m": 1920,
+    "6m": 2880, "8m": 3840, "16m": 7680,
+}
+
+MIDI_TPQ = 480
+
 QUALITY_OFFSETS = {
     "": (0, 4, 7),
     "m": (0, 3, 7),
@@ -397,6 +405,66 @@ class Engine:
         octave = midi // 12 - 1
         return f"{PT_CLASSES[pc]}{octave}"
 
+    @staticmethod
+    def _note_midi(name: str) -> int:
+        m = re.match(r"^([A-Ga-g][#b]?)(-?\d+)$", name)
+        if not m:
+            return 60
+        pc = PT_CLASSES.index(m.group(1).upper())
+        return (int(m.group(2)) + 1) * 12 + pc
+
+    @staticmethod
+    def _vlq(n: int) -> bytes:
+        out = [n & 0x7F]
+        n >>= 7
+        while n:
+            out.insert(0, 0x80 | (n & 0x7F))
+            n >>= 7
+        return bytes(out)
+
+    def _meta(self, delta: int, mtype: int, payload: bytes) -> bytes:
+        return (
+            self._vlq(delta)
+            + b"\xff" + bytes([mtype])
+            + self._vlq(len(payload)) + payload
+        )
+
+    def _write_midi(self, tone: dict, path: Path) -> None:
+        import struct
+
+        bpm = int(tone["bpm"]) or 120
+        tempo = int(60000000 / bpm)
+
+        meta = (
+            self._meta(0, 0x03, b"LoopToTone")
+            + self._meta(0, 0x51, tempo.to_bytes(3, "big"))
+            + self._meta(0, 0x58, bytes([4, 2, 24, 8]))
+            + self._meta(0, 0x2F, b"")
+        )
+
+        events = []
+        for n in tone["notes"]:
+            t_on = int(n["step"]) * (MIDI_TPQ // 4)
+            t_off = t_on + DUR_TICKS.get(n["duration"], 120)
+            mid = self._note_midi(n["note"])
+            vel = max(1, min(127, int(round(float(n["velocity"]) * 127))))
+            events.append((t_on, 0x90, mid, vel))
+            events.append((t_off, 0x80, mid, 0))
+        events.sort(key=lambda e: (e[0], 0 if e[1] == 0x80 else 1))
+
+        notes_track = self._vlq(0) + bytes([0xC0, 0])
+        prev = 0
+        for tick, status, mid, vel in events:
+            notes_track += self._vlq(tick - prev) + bytes([status, mid, vel])
+            prev = tick
+        notes_track += self._meta(0, 0x2F, b"")
+
+        header = b"MThd" + struct.pack(">IHHH", 6, 1, 2, MIDI_TPQ)
+        chunks = header
+        for track in (meta, notes_track):
+            chunks += b"MTrk" + struct.pack(">I", len(track)) + track
+        path.write_bytes(chunks)
+
     def _voicing(self, analysis: dict) -> dict:
         bpm = analysis["bpm"] or 120
         sps = bpm / 60.0 * 4.0
@@ -512,14 +580,23 @@ class Engine:
             "name", "bpm", "instrument", "steps", "key", "scale", "swing", "notes"
         )}]
         out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        midi_dir = out / "midi"
+        midi_dir.mkdir(parents=True, exist_ok=True)
+        midi_name = f"{tone['name']}.mid"
+        midi_path = midi_dir / midi_name
+        self._write_midi(tone, midi_path)
+
         self.log("info", f"[{name}] wrote {out_path} (steps={tone['steps']}, "
                          f"notes={len(tone['notes'])}, prog={' '.join(tone['progression'])})")
+        self.log("info", f"[{name}] wrote {midi_path}")
         with self.lock:
             self.state["files"][name].update({
                 "status": "done",
                 "step": "",
                 "error": None,
                 "json_file": json_name,
+                "midi_file": midi_name,
                 "done_at": time.time(),
                 "result": {
                     "bpm": tone["bpm"],
@@ -628,6 +705,7 @@ class Engine:
                     "error": f["error"],
                     "size": f.get("size", 0),
                     "json_file": f.get("json_file"),
+                    "midi_file": f.get("midi_file"),
                     "result": f.get("result"),
                     "attempts": f.get("attempts", 0),
                     "done_at": f.get("done_at"),

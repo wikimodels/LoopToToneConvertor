@@ -77,6 +77,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._open_dir(self._source_dir())
         if path == "/api/open-output":
             return self._open_dir(self._output_dir())
+        if path == "/api/open-midi":
+            return self._open_dir(self._output_dir() / "midi")
         if path == "/api/open-file":
             name = self.path.split("?", 1)[1] if "?" in self.path else ""
             return self._open_file(name)
@@ -158,13 +160,20 @@ class Handler(BaseHTTPRequestHandler):
                 })
         return {"files": items}
 
+    def _resolve_out(self, name: str) -> Path | None:
+        for base in (self._output_dir(), self._output_dir() / "midi"):
+            p = base / Path(name).name
+            if p.is_file():
+                return p
+        return None
+
     def _download(self, name: str):
-        p = (self._output_dir() / Path(name).name)
-        if not p.is_file():
+        p = self._resolve_out(name)
+        if p is None:
             return self._send_json({"ok": False, "error": "file not found"}, 404)
         self._send_bytes(
             p.read_bytes(),
-            "application/json",
+            "audio/midi" if p.suffix.lower() == ".mid" else "application/json",
             disposition=f'attachment; filename="{p.name}"',
         )
 
@@ -179,8 +188,8 @@ class Handler(BaseHTTPRequestHandler):
         if not raw:
             return self._send_json({"ok": False, "error": "missing file param"}, 400)
         name = raw.split("=", 1)[1] if "=" in raw else raw
-        p = (self._output_dir() / Path(name).name)
-        if not p.is_file():
+        p = self._resolve_out(name)
+        if p is None:
             return self._send_json({"ok": False, "error": "file not found"}, 404)
         try:
             os.startfile(str(p))

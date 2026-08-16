@@ -125,8 +125,12 @@ function renderFiles() {
       ? '<span class="spin"></span>' + (f.step || 'подготовка')
       : '<span class="stepdone">' + (f.step || '') + '</span>';
     const actions = f.json_file
-      ? `<button data-dl="${f.json_file}" title="Скачать">⬇</button>
-         <button data-open="${f.json_file}" title="Открыть файл">📂</button>`
+      ? `<button data-dl="${f.json_file}" title="Скачать JSON">⬇</button>
+         <button data-open="${f.json_file}" title="Открыть JSON">📂</button>`
+      : '';
+    const midiActions = f.midi_file
+      ? `<button data-mdl="${f.midi_file}" title="Скачать MIDI">🎹</button>
+         <button data-openm="${f.midi_file}" title="Открыть MIDI">📁</button>`
       : '';
     const error = f.error ? `<div class="err" title="${f.error.replace(/"/g, '&quot;')}">${f.error.length > 120 ? f.error.slice(0, 120) + '…' : f.error}</div>` : '';
     tr.innerHTML =
@@ -144,7 +148,7 @@ function renderFiles() {
        <td>${r.notes || ''}</td>
        <td class="prog" title="${(r.progression || []).join(' ')}">${(r.progression || []).join(' ')}</td>
        <td class="jsoncell">${f.json_file ? `<a class="link" href="/api/file/${encodeURIComponent(f.json_file)}" download="${f.json_file}">${f.json_file}</a>` : ''}</td>
-       <td class="acts">${actions}</td>`;
+       <td class="acts">${actions}${midiActions}</td>`;
     tbody.appendChild(tr);
   }
 }
@@ -198,6 +202,7 @@ document.addEventListener('click', (e) => {
   else if (t.id === 'btnRescan') control('rescan');
   else if (t.id === 'btnRetry') control('retry-failed');
   else if (t.id === 'btnOpenOut') api('/api/open-output').catch(() => {});
+  else if (t.id === 'btnOpenMidi') api('/api/open-midi').catch(() => {});
   else if (t.id === 'btnOpenSrc') api('/api/open-source').catch(() => {});
   else if (t.id === 'btnSaveSettings') saveSettings();
   else if (t.id === 'btnClearLog') { $('logBox').innerHTML = ''; lastLogSeq = 0; }
@@ -215,6 +220,15 @@ document.addEventListener('click', (e) => {
     a.remove();
   } else if (t.dataset.open) {
     api('/api/open-file?name=' + encodeURIComponent(t.dataset.open)).catch(() => {});
+  } else if (t.dataset.mdl) {
+    const a = document.createElement('a');
+    a.href = '/api/file/' + encodeURIComponent(t.dataset.mdl);
+    a.download = t.dataset.mdl;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } else if (t.dataset.openm) {
+    api('/api/open-file?name=' + encodeURIComponent(t.dataset.openm)).catch(() => {});
   }
 });
 
