@@ -10,6 +10,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Pr
 
 timeout /t 2 /nobreak >nul
 
-echo [*] Starting server at http://localhost:8002
-start "" "http://localhost:8002"
+echo [*] Starting server at http://localhost:8002 (browser opens automatically)
 python web/server.py > server.log 2>&1
