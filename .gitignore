@@ -4,3 +4,4 @@ server.log
 __pycache__/
 *.pyc
 .uploadtmp/
+host/com.looptotone.server.json
