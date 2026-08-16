@@ -71,6 +71,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_static(path[1:])
         if path == "/api/state":
             return self._send_json(ENGINE.view())
+        if path == "/api/appcheck-token":
+            return self._handle_appcheck_token()
         if path == "/api/files":
             return self._send_json(self._list_files())
         if path == "/api/open-source":
@@ -114,11 +116,23 @@ class Handler(BaseHTTPRequestHandler):
             if action == "check-api":
                 return self._send_json({"ok": ENGINE.check_api(force=True)})
             return self._send_json({"ok": False, "error": "unknown action"}, 400)
+        if path == "/api/appcheck-token":
+            return self._handle_appcheck_token()
         if path == "/api/settings":
             return self._handle_settings()
         return self._send_bytes(b"not found", "text/plain", 404)
 
     # ---- handlers -----------------------------------------------------------
+
+    def _handle_appcheck_token(self):
+        if self.command == "GET":
+            return self._send_json(ENGINE.appcheck_status())
+        body = self._read_json(size=256 * 1024)
+        token = body.get("token")
+        if not token or not isinstance(token, str) or len(token) < 80:
+            return self._send_json({"ok": False, "error": "invalid token"}, 400)
+        ENGINE.set_appcheck_token(token, source=body.get("delivered_from", "extension"))
+        return self._send_json({"ok": True, "status": ENGINE.appcheck_status()})
 
     def _handle_settings(self):
         body = self._read_json()

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>LoopToTone Bridge</title>
+<style>
+  body { font-family: system-ui, sans-serif; width: 260px; margin: 0; padding: 12px; }
+  h1 { font-size: 14px; margin: 0 0 8px 0; }
+  p { font-size: 12px; color: #666; margin: 4px 0; }
+  #status { font-weight: 600; }
+  .ok { color: #2e7d32; }
+  .bad { color: #c62828; }
+</style>
+</head>
+<body>
+  <h1>LoopToTone App Check Bridge</h1>
+  <p>Перехватывает App Check токен на <b>chordmini.me</b> и отправляет его в движок <b>127.0.0.1:8002</b>.</p>
+  <p>Статус: <span id="status">проверка...</span></p>
+  <script>
+    const el = document.getElementById('status');
+    fetch('http://127.0.0.1:8002/api/appcheck-token', { method: 'GET' })
+      .then((r) => r.json())
+      .then((d) => {
+        const t = d.token || (d.status || {});
+        el.textContent = 'движок доступен';
+        el.className = 'ok';
+      })
+      .catch(() => {
+        el.textContent = 'движок не запущен';
+        el.className = 'bad';
+      });
+  </script>
+</body>
+</html>

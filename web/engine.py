@@ -23,6 +23,14 @@ ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config.json"
 STATE_PATH = ROOT / "state.json"
 
+FIREBASE_KEY = "AIzaSyA9K2ksUbHcf9S01O4hOYERokw8mhIzZRw"
+FIREBASE_PROJECT = "chordmini-d29f9"
+FIREBASE_APP_ID = "1:191567167632:web:113d549db841800daa5815"
+FIREBASE_STORAGE = "https://firebasestorage.googleapis.com/v0/b/chordmini-d29f9.firebasestorage.app"
+APPCHECK_EXCHANGE = ("https://content-firebaseappcheck.googleapis.com/v1/projects/"
+                     "chordmini-d29f9/apps/1:191567167632:web:113d549db841800daa5815"
+                     ":exchangeRecaptchaV3Token")
+
 DEFAULT_CONFIG = {
     "source": r"C:\Users\Vitali\Downloads\TrimmedAudio",
     "output": r"D:\Music\ToneJs",
@@ -33,6 +41,7 @@ DEFAULT_CONFIG = {
     "call_interval_sec": 33,
     "autostart": False,
 }
+TOKEN_FILE = ROOT / "token.json"
 
 AUDIO_EXTS = {".mp3", ".wav", ".flac", ".m4a", ".ogg", ".aac", ".opus", ".wma"}
 
@@ -121,6 +130,68 @@ class Engine:
                 pass
         return {"files": {}, "order": [], "running": False, "paused": False,
                 "started_at": None, "finished_at": None, "log_seq": 0}
+
+    # --------------------------------------------------------------- appcheck
+
+    @staticmethod
+    def _jwt_claims(token: str) -> dict | None:
+        try:
+            import base64
+            seg = token.split(".")[1]
+            seg += "=" * (-len(seg) % 4)
+            return json.loads(base64.urlsafe_b64decode(seg))
+        except Exception:
+            return None
+
+    def set_appcheck_token(self, token: str, source: str = "extension") -> None:
+        claims = self._jwt_claims(token)
+        exp = float(claims.get("exp") or 0) if claims else 0
+        entry = {
+            "token": token,
+            "source": source,
+            "received_at": time.time(),
+            "expires_at": exp,
+        }
+        tmp = TOKEN_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(entry), encoding="utf-8")
+        os.replace(tmp, TOKEN_FILE)
+        if exp:
+            self.log("info", f"App Check token updated (expires {time.strftime('%Y-%m-%d %H:%M', time.gmtime(exp))})")
+        else:
+            self.log("info", "App Check token updated (expiry unknown)")
+
+    def _load_token(self) -> dict | None:
+        try:
+            return json.loads(TOKEN_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+    def appcheck_status(self) -> dict:
+        entry = self._load_token()
+        if not entry or not entry.get("token"):
+            return {"present": False, "error": "no token"}
+        exp = float(entry.get("expires_at") or 0)
+        return {
+            "present": True,
+            "source": entry.get("source"),
+            "expires_at": exp,
+            "expires_in_sec": max(0, exp - time.time()) if exp else None,
+            "updated_at": entry.get("received_at"),
+        }
+
+    def appcheck_header(self, required: bool = True) -> str:
+        entry = self._load_token()
+        token = (entry or {}).get("token") or ""
+        if token and float(entry.get("expires_at") or 0) and \
+                float(entry.get("expires_at") or 0) < time.time() + 600:
+            self.log("warn", "App Check token expired or expiring soon; open chordmini.me "
+                             "with the browser extension to refresh")
+        if not token and required:
+            raise RuntimeError(
+                "No App Check token. Open https://chordmini.me with the LoopToTone "
+                "extension installed, then retry."
+            )
+        return token
 
     def save_state(self) -> None:
         with self.lock:
@@ -232,6 +303,154 @@ class Engine:
         ctype = f"multipart/form-data; boundary={boundary}"
         return body, ctype
 
+    @staticmethod
+    def _multipart_fields(fields: dict) -> tuple[bytes, str]:
+        boundary = "----LoopTone" + uuid.uuid4().hex
+        parts = []
+        for key, val in fields.items():
+            parts.append(
+                f"--{boundary}\r\nContent-Disposition: form-data; name=\"{key}\"\r\n\r\n{val}\r\n".encode()
+            )
+        parts.append(f"--{boundary}--\r\n".encode())
+        return b"".join(parts), f"multipart/form-data; boundary={boundary}"
+
+    def _http_json(self, method: str, url: str, body: bytes | None = None,
+                   headers: dict | None = None, tag: str = "http", timeout: int = 240,
+                   raw: bool = False):
+        req = urllib.request.Request(url, data=body, method=method)
+        for k, v in (headers or {}).items():
+            req.add_header(k, v)
+        req.add_header("User-Agent", "LoopToToneConvertor/1.0")
+        try:
+            with self._open_checked(req, tag, timeout) as resp:
+                data = resp.read()
+            if raw:
+                return resp.status, data
+            return resp.status, json.loads(data.decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            err = exc.read().decode("utf-8", "replace")
+            if raw:
+                return exc.code, err.encode()
+            try:
+                return exc.code, json.loads(err)
+            except Exception:
+                return exc.code, err
+
+    def _fb_anon_token(self) -> str:
+        st, data = self._http_json(
+            "POST",
+            f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={FIREBASE_KEY}",
+            body=json.dumps({"returnSecureToken": True}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            tag="firebase-auth", timeout=30,
+        )
+        if st != 200 or not isinstance(data, dict) or not data.get("idToken"):
+            raise RuntimeError(f"firebase anonymous auth failed: {st}")
+        return data["idToken"]
+
+    def _fb_upload(self, id_token: str, data: bytes, fname: str) -> str:
+        appcheck = self.appcheck_header()
+        obj = f"temp/{int(time.time() * 1000)}-{fname}"
+        url = f"{FIREBASE_STORAGE}/o?name={urllib.parse.quote(obj, safe='')}"
+        meta = json.dumps({
+            "name": obj,
+            "contentType": "audio/mpeg",
+            "metadata": {
+                "offload": "true",
+                "cleanup": "auto",
+                "uploadedAt": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
+            },
+        }).encode("utf-8")
+        st, upload_hdrs, body = self._http_full(
+            "POST", url, meta,
+            {
+                "Authorization": f"Firebase {id_token}",
+                "Content-Type": "application/json",
+                "x-goog-upload-command": "start",
+                "x-goog-upload-protocol": "resumable",
+                "x-firebase-appcheck": appcheck,
+            },
+            tag="storage-start", timeout=30,
+        )
+        upload_url = upload_hdrs.get("X-Goog-Upload-URL")
+        if st != 200 or not upload_url:
+            raise RuntimeError(f"storage upload start failed: {st} {body[:200]}")
+        CH = 256 * 1024
+        off = 0
+        while off < len(data):
+            chunk = data[off:off + CH]
+            final = off + len(chunk) >= len(data)
+            st2, _, body2 = self._http_full(
+                "PUT", upload_url, chunk,
+                {
+                    "Content-Type": "application/octet-stream",
+                    "x-goog-upload-command": "upload, finalize" if final else "upload",
+                    "x-goog-upload-offset": str(off),
+                },
+                tag="storage-chunk", timeout=60,
+            )
+            if st2 not in (200, 201):
+                raise RuntimeError(f"storage chunk failed: {st2} {body2[:200]}")
+            off += len(chunk)
+        st3, hdrs3, body3 = self._http_full(
+            "GET",
+            f"{FIREBASE_STORAGE}/o/{urllib.parse.quote(obj, safe='')}?alt=media",
+            None,
+            {"Authorization": f"Firebase {id_token}", "x-firebase-appcheck": appcheck},
+            tag="storage-media", timeout=60, raw=True,
+        )
+        if st3 != 200:
+            raise RuntimeError(f"storage media lookup failed: {st3} {body3[:200]}")
+        token = hdrs3.get("X-Goog-Download-Token")
+        url = f"{FIREBASE_STORAGE}/o/{urllib.parse.quote(obj, safe='')}?alt=media"
+        if token:
+            url += f"&token={urllib.parse.quote(token, safe='')}"
+        return url
+
+    def _http_full(self, method: str, url: str, body: bytes | None,
+                   headers: dict | None, tag: str, timeout: int, raw: bool = False):
+        req = urllib.request.Request(url, data=body, method=method)
+        for k, v in (headers or {}).items():
+            req.add_header(k, v)
+        req.add_header("User-Agent", "LoopToToneConvertor/1.0")
+        last_err = None
+        for attempt in range(1, 4):
+            try:
+                with self._open_checked(req, tag, timeout) as resp:
+                    return resp.status, dict(resp.headers), resp.read()
+            except urllib.error.HTTPError as exc:
+                err = exc.read()
+                if exc.code >= 500:
+                    last_err = f"HTTP {exc.code}: {err[:200]}"
+                    self.log("warn", f"{tag}: {last_err} (attempt {attempt}/3)")
+                    if not self._sleep_interruptible(15 * attempt):
+                        raise InterruptedError("stopped by user")
+                    continue
+                return exc.code, dict(exc.headers), err
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                last_err = str(exc)
+                self.log("warn", f"{tag}: {last_err} (attempt {attempt}/3)")
+                if not self._sleep_interruptible(15 * attempt):
+                    raise InterruptedError("stopped by user")
+        raise RuntimeError(f"{tag}: failed after retries: {last_err}")
+
+    def _offload(self, path: str, fields: dict, tag: str, timeout: int = 600) -> dict:
+        appcheck = self.appcheck_header()
+        body, ctype = self._multipart_fields(fields)
+        st, data = self._http_json(
+            "POST", self.config["api_base"].rstrip("/") + path, body,
+            {
+                "Content-Type": ctype,
+                "Content-Length": str(len(body)),
+                "x-firebase-appcheck": appcheck,
+            },
+            tag=tag, timeout=timeout,
+        )
+        if st != 200:
+            raise RuntimeError(f"{tag}: HTTP {st}: {str(data)[:300]}")
+        self.log("info", f"{tag}: ok")
+        return data
+
     def _api_call(self, path: str, body: bytes, ctype: str, tag: str, timeout: int = 240) -> dict:
         url = self.config["api_base"].rstrip("/") + path
         req = urllib.request.Request(url, data=body, method="POST")
@@ -314,22 +533,50 @@ class Engine:
         data = file_path.read_bytes()
         fname = file_path.name
 
+        self._wait_api_slot("upload")
+        id_token = self._fb_anon_token()
+        self.log("info", f"[{fname}] uploading to Firebase Storage ({len(data) / 1e6:.2f} MB)")
+        offload_url = self._fb_upload(id_token, data, fname)
+
+        duration = 0.0
+        try:
+            import wave
+            with wave.open(str(file_path), "rb") as w:
+                duration = w.getnframes() / float(w.getframerate())
+        except Exception:
+            pass
+
         self._wait_api_slot("detect-beats")
-        beats_resp = self._api_call(
-            "/api/detect-beats",
-            *self._multipart(data, fname, {"detector": self.config["beat_model"]}),
-            "detect-beats",
+        beats_resp = self._offload(
+            "/api/detect-beats-offload",
+            {
+                "offload_url": offload_url,
+                "detector": self.config["beat_model"],
+                "delete_offload": "0",
+                "audio_duration": str(duration) if duration else "",
+            },
+            "detect-beats-offload",
         )
         beats = [self._beat_time(b) for b in beats_resp.get("beats") or []]
         bpm = float(beats_resp.get("bpm") or 0)
-        time_sig = int(beats_resp.get("time_signature") or 4) or 4
-        duration = float(beats_resp.get("duration") or 0)
+        ts_raw = str(beats_resp.get("time_signature") or "4")
+        try:
+            time_sig = int(ts_raw.split("/")[0].strip()) or 4
+        except (ValueError, IndexError):
+            time_sig = 4
+        duration = float(beats_resp.get("duration") or duration or 0)
 
         self._wait_api_slot("recognize-chords")
-        chord_resp = self._api_call(
-            "/api/recognize-chords",
-            *self._multipart(data, fname, {"detector": self.config["chord_model"]}),
-            "recognize-chords",
+        chord_resp = self._offload(
+            "/api/recognize-chords-offload",
+            {
+                "offload_url": offload_url,
+                "model": self.config["chord_model"],
+                "detector": self.config["chord_model"],
+                "chord_dict": "full",
+                "delete_offload": "0",
+            },
+            "recognize-chords-offload",
         )
         chords = []
         for c in chord_resp.get("chords") or []:
@@ -342,6 +589,17 @@ class Engine:
         if not chords and duration > 0:
             self.log("warn", f"{fname}: no chords returned, trying heuristic")
             chords = [{"start": 0.0, "end": duration, "chord": "N", "confidence": 0.0}]
+
+        self._wait_api_slot("delete-offload")
+        try:
+            self._http_json(
+                "POST", self.config["api_base"].rstrip("/") + "/api/offload/delete",
+                json.dumps({"url": offload_url}).encode("utf-8"),
+                {"Content-Type": "application/json", "x-firebase-appcheck": self.appcheck_header()},
+                tag="offload-delete", timeout=60,
+            )
+        except Exception as exc:
+            self.log("warn", f"{fname}: offload cleanup skipped ({exc})")
 
         key, scale = "", ""
         if self.config.get("detect_key") and chords:
@@ -369,10 +627,11 @@ class Engine:
 
     @staticmethod
     def _split_key(primary: str) -> tuple[str, str]:
-        m = re.match(r"^\s*([A-Ga-g][#♯b♭]?)\s*(major|minor|m)?", primary)
+        m = re.match(r"^\s*([A-Ga-g](?:#|♯|b|♭)?)\s*(major|minor|m)?", primary)
         if not m:
             return "", ""
-        key = m.group(1).replace("♯", "#").replace("♭", "b").upper()
+        key_raw = m.group(1).replace("♯", "#").replace("♭", "b")
+        key = key_raw[0].upper() + key_raw[1:]
         scale_raw = m.group(2) or ""
         scale = {"major": "major", "minor": "minor", "m": "minor"}.get(scale_raw, scale_raw.lower())
         return key, scale
@@ -749,6 +1008,7 @@ class Engine:
             "started_at": self.state["started_at"],
             "finished_at": self.state["finished_at"],
             "api_ok": self._api_ok,
+            "appcheck": self.appcheck_status(),
             "totals": totals,
             "eta": eta,
             "files": files,

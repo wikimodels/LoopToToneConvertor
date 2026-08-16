@@ -74,6 +74,20 @@ function render() {
   badge.className = 'badge ' + (state.api_ok ? 'ok' : 'bad');
   badge.textContent = 'API: ' + (state.api_ok === null ? '...' : state.api_ok ? 'доступен' : 'недоступен');
 
+  const acBadge = $('acBadge');
+  const ac = state.appcheck;
+  if (ac && ac.present) {
+    acBadge.className = 'badge ok';
+    const left = Math.round((ac.expires_in_sec != null ? ac.expires_in_sec : 0) / 3600);
+    acBadge.textContent = `AppCheck: ок (${left}ч)`;
+  } else if (ac && ac.error) {
+    acBadge.className = 'badge bad';
+    acBadge.textContent = 'AppCheck: нет токена';
+  } else {
+    acBadge.className = 'badge unknown';
+    acBadge.textContent = 'AppCheck: ...';
+  }
+
   const run = $('btnRun'), pause = $('btnPause'), resume = $('btnResume');
   run.textContent = state.running ? 'Стоп' : 'Запустить';
   run.classList.toggle('danger', !!state.running);
