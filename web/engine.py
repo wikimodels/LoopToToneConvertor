@@ -649,6 +649,20 @@ class Engine:
         scale = {"major": "major", "minor": "minor", "m": "minor"}.get(scale_raw, scale_raw.lower())
         return key, scale
 
+    def _save_analysis(self, name: str, analysis: dict) -> None:
+        path = self._output_dir() / f"{Path(name).stem}.analysis.json"
+        path.write_text(json.dumps({
+            "source": "chordmini API",
+            "bpm": analysis["bpm"],
+            "time_signature": analysis["time_signature"],
+            "duration": analysis["duration"],
+            "key": analysis["key"],
+            "scale": analysis["scale"],
+            "beats": analysis["beats"],
+            "chords": analysis["chords"],
+        }, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+        self.log("info", f"[{name}] saved raw analysis -> {path}")
+
     # ------------------------------------------------------------------ conversion
 
     @staticmethod
@@ -851,6 +865,7 @@ class Engine:
         with self.lock:
             self.state["files"][name]["step"] = "beats"
         analysis = self._analyze(fpath)
+        self._save_analysis(name, analysis)
         if not analysis["beats"]:
             self.log("warn", f"[{name}] no beats returned")
         chords_count = analysis.get("chord_count")
