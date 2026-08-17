@@ -53,6 +53,56 @@ def engine_alive() -> bool:
         return False
 
 
+def kill_engine_processes() -> None:
+    """Kill anything that may hold :8002 or an old/dangling web/server.py,
+    so the engine can be started cleanly (no port fights, no stale state)."""
+    logf = open(LOG, "ab")
+    logf.write(b"[host] cleaning up stale engine processes\n")
+    logf.close()
+    pids = set()
+
+    if os.name == "nt":
+        try:
+            out = subprocess.check_output(
+                ["netstat", "-ano", "-p", "tcp"],
+                universal_newlines=True,
+                stderr=subprocess.DEVNULL,
+            )
+            for line in out.splitlines():
+                if ":8002" in line and "LISTENING" in line.upper():
+                    bits = line.split()
+                    if bits:
+                        pids.add(bits[-1])
+        except (OSError, subprocess.CalledProcessError):
+            pass
+    try:
+        out = subprocess.check_output(
+            ["wmic", "process", "where", "name='python.exe'", "get", "processid,commandline", "/format:list"],
+            universal_newlines=True,
+            stderr=subprocess.DEVNULL,
+        )
+        cur = str(os.getpid())
+        for block in out.split("\n\n"):
+            cmd, pid = "", ""
+            for line in block.splitlines():
+                low = line.lower()
+                if low.startswith("commandline="):
+                    cmd = line.split("=", 1)[1]
+                elif low.startswith("processid="):
+                    pid = line.split("=", 1)[1]
+            if pid and pid != cur and "web\\server.py" in cmd.lower().replace("/", "\\"):
+                pids.add(pid)
+    except (OSError, subprocess.CalledProcessError):
+        pass
+
+    for pid in pids:
+        try:
+            subprocess.run(["taskkill", "/F", "/T", "/PID", pid],
+                           capture_output=True, timeout=5)
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            pass
+
+
 def start_engine() -> int | None:
     if sys.version_info >= (3, 8):
         creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
@@ -86,6 +136,8 @@ def main():
     if engine_alive():
         _send({"ok": True, "started": False})
         return
+    kill_engine_processes()
+    time.sleep(0.4)
     pid = None
     try:
         pid = start_engine()

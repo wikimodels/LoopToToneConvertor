@@ -942,6 +942,19 @@ class Engine:
                 self.log("warn", "API health check failed")
             names = self.pending_names()
             if not names:
+                with self.lock:
+                    total = len(self.state["files"])
+                    busy = any(
+                        f["status"] in ("pending", "working")
+                        for f in self.state["files"].values()
+                    )
+                if total and not busy:
+                    with self.lock:
+                        self.state["running"] = False
+                        self.state["paused"] = True
+                        self.state["finished_at"] = time.time()
+                    self.log("info", "Queue finished, engine stopped")
+                    return
                 self.log("info", "Queue empty")
                 time.sleep(1)
                 continue
@@ -971,6 +984,17 @@ class Engine:
         with self.lock:
             if self.state["running"] and not self.state["paused"]:
                 return
+            total = len(self.state["files"])
+            busy = any(
+                f["status"] in ("pending", "working")
+                for f in self.state["files"].values()
+            )
+            if total and not busy:
+                self.log("info", "Queue completed, starting a clean rerun")
+                self.state["files"] = {}
+                self.state["order"] = []
+                self.state["started_at"] = None
+                self.state["finished_at"] = None
             self.state["running"] = True
             self.state["paused"] = False
             if self.state["started_at"] is None:

@@ -242,7 +242,12 @@ def main():
     ENGINE.save_state()
     if ENGINE.config.get("autostart"):
         ENGINE.start()
-    srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    try:
+        srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    except OSError as exc:
+        ENGINE.log("error", f"port {args.port} is in use and not serving this engine ({exc}); "
+                            "run quit-natives / reload the panel to let the host clean up stale processes")
+        raise SystemExit(1) from exc
     url = f"http://localhost:{args.port}"
     if args.browser:
         threading.Timer(0.6, lambda: webbrowser.open(url)).start()
