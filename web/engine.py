@@ -64,30 +64,16 @@ DUR_TICKS = {
 MIDI_TPQ = 480
 
 QUALITY_OFFSETS = {
-    "": (0, 4, 7),
-    "m": (0, 3, 7),
-    "dim": (0, 3, 6),
-    "aug": (0, 4, 8),
-    "sus2": (0, 2, 7),
-    "sus4": (0, 5, 7),
-    "5": (0, 7, 12),
-    "6": (0, 4, 7, 9),
-    "m6": (0, 3, 7, 9),
-    "7": (0, 4, 7, 10),
-    "maj7": (0, 4, 7, 11),
-    "M7": (0, 4, 7, 11),
-    "m7": (0, 3, 7, 10),
-    "mmaj7": (0, 3, 7, 11),
-    "mM7": (0, 3, 7, 11),
-    "dim7": (0, 3, 6, 9),
-    "m7b5": (0, 3, 6, 10),
-    "half-dim": (0, 3, 6, 10),
-    "h": (0, 3, 6, 10),
-    "9": (0, 4, 7, 10, 14),
-    "maj9": (0, 4, 7, 11, 14),
-    "m9": (0, 3, 7, 10, 14),
-    "7sus4": (0, 5, 7, 10),
-    "7sus2": (0, 2, 7, 10),
+    "": (0, 4, 7), "maj": (0, 4, 7), "M": (0, 4, 7), "major": (0, 4, 7),
+    "m": (0, 3, 7), "min": (0, 3, 7), "minor": (0, 3, 7),
+    "dim": (0, 3, 6), "aug": (0, 4, 8),
+    "sus2": (0, 2, 7), "sus4": (0, 5, 7), "5": (0, 7, 12),
+    "6": (0, 4, 7, 9), "m6": (0, 3, 7, 9), "7": (0, 4, 7, 10),
+    "maj7": (0, 4, 7, 11), "M7": (0, 4, 7, 11), "m7": (0, 3, 7, 10),
+    "mmaj7": (0, 3, 7, 11), "mM7": (0, 3, 7, 11), "dim7": (0, 3, 6, 9),
+    "m7b5": (0, 3, 6, 10), "half-dim": (0, 3, 6, 10), "h": (0, 3, 6, 10),
+    "9": (0, 4, 7, 10, 14), "maj9": (0, 4, 7, 11, 14), "m9": (0, 3, 7, 10, 14),
+    "7sus4": (0, 5, 7, 10), "7sus2": (0, 2, 7, 10),
 }
 
 
@@ -710,13 +696,24 @@ class Engine:
             rest = sm.group(1)
             bass = sm.group(2)
             slash = (PT_CLASSES.index(bass[0].upper()) + (1 if len(bass) > 1 and bass[1] == "#" else -1 if len(bass) > 1 and bass[1] == "b" else 0)) % 12
+
+        # 1) try exact (case-sensitive) match first — QUALITY_OFFSETS distinguishes
+        #    "M7" (major 7th) from "m7" (minor 7th), so lowercasing before lookup
+        #    would silently collapse them into the wrong entry.
+        offsets = QUALITY_OFFSETS.get(rest)
+
         quality = rest.lower()
-        offsets = QUALITY_OFFSETS.get(quality)
+        if offsets is None:
+            # 2) fall back to case-insensitive match
+            offsets = QUALITY_OFFSETS.get(quality)
+
         if offsets is None:
             q = re.sub(r"[^a-z0-9]", "", quality)
             if q.startswith("maj7") or q.startswith("m7"):
-                offsets = (0, 3, 7) if q.startswith("m7") else (0, 4, 7)
-            elif q and q.startswith("m"):
+                offsets = (0, 3, 7) if q.startswith("m7") and not q.startswith("maj7") else (0, 4, 7)
+            elif q.startswith("maj") or q.startswith("major"):
+                offsets = (0, 4, 7)
+            elif q and q.startswith("m") and not q.startswith("maj"):
                 offsets = (0, 3, 7)
             elif q and "sus" in q:
                 offsets = (0, 5, 7)
@@ -724,6 +721,7 @@ class Engine:
                 offsets = (0, 4, 7, 10)
             else:
                 offsets = (0, 4, 7)
+
         tones = sorted({(pc + off) % 12 for off in (offsets or (0, 4, 7))})
         return pc, pc, tones, slash
 
