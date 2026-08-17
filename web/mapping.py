@@ -16,6 +16,14 @@ QUALITY_OFFSETS = {
     "7sus4": (0, 5, 7, 10), "7sus2": (0, 2, 7, 10),
 }
 
+# Номер ступени аккорда (как её пишет chordmini в числовом slash, напр.
+# "A:maj7/5") -> индекс в кортеже offsets данного аккорда (root=0, 3rd=1,
+# 5th=2, 7th=3, 9th=4, 11th=5, 13th=6). Это НЕ фиксированный интервал в
+# полутонах — квинта у dim/m7b5 уменьшённая, а не чистая, поэтому берём
+# offset именно из уже посчитанной для конкретного аккорда таблицы, а не
+# считаем "root + 7 полутонов" в лоб.
+DEGREE_TO_OFFSET_INDEX = {1: 0, 3: 1, 5: 2, 7: 3, 9: 4, 11: 5, 13: 6}
+
 
 def pc_from_note(note: str) -> int:
     """C/C#/Db/... -> pitch class 0..11 (0 = C)."""
@@ -31,7 +39,12 @@ def parse_chord(symbol: str) -> tuple[int, int, list[int], int | None] | None:
     """Chord symbol -> (root pc, root pc, tone pcs in root/3rd/5th/7th order, slash bass pc | None).
 
     Returns None for rests/no-chord symbols. Tones keep the musical order of
-    the chord formula so voicing can distinguish roles (root/3rd/5th/7th)."""
+    the chord formula so voicing can distinguish roles (root/3rd/5th/7th).
+
+    Slash bass can be given either as a note name ("F#:maj/A#") or as a
+    scale-degree number relative to the chord's own root ("A:maj7/5", as
+    chordmini emits it). Both forms resolve to a concrete pitch class.
+    """
     s = symbol.strip().replace("♯", "#").replace("♭", "b")
     if not s or s in ("N", "N.C.", "NC", "None", "-"):
         return None
@@ -40,13 +53,18 @@ def parse_chord(symbol: str) -> tuple[int, int, list[int], int | None] | None:
         return None
     pc = pc_from_note(m.group(1) + m.group(2))
     rest = m.group(3)
-    slash = None
+
+    slash = None          # resolved pitch class of slash bass, if any
+    slash_degree = None   # numeric scale-degree slash, resolved after offsets are known
+
     sm = re.match(r"^(.*?)/([A-Ga-g][#b]?|\d{1,2})$", rest)
     if sm:
         rest = sm.group(1)
         bass = sm.group(2)
         if bass[0].isalpha():
             slash = pc_from_note(bass)
+        else:
+            slash_degree = int(bass)
 
     rest = rest.lstrip(":").lstrip(".")
 
@@ -77,9 +95,21 @@ def parse_chord(symbol: str) -> tuple[int, int, list[int], int | None] | None:
         else:
             offsets = (0, 4, 7)
 
+    offsets = offsets or (0, 4, 7)
+
+    # Resolve numeric slash-degree now that we know this chord's own offsets.
+    # E.g. "A:maj7/5" -> degree 5 -> offsets[2] -> root + that interval.
+    if slash is None and slash_degree is not None:
+        idx = DEGREE_TO_OFFSET_INDEX.get(slash_degree)
+        if idx is not None and idx < len(offsets):
+            slash = (pc + offsets[idx]) % 12
+        # else: unknown/unsupported degree (e.g. a 15th) — leave slash as
+        # None and let the caller fall back to the chord root, same as
+        # before this fix, rather than guessing.
+
     tones = []
     seen = set()
-    for off in (offsets or (0, 4, 7)):
+    for off in offsets:
         pc_tone = (pc + off) % 12
         if pc_tone not in seen:
             seen.add(pc_tone)
