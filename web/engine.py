@@ -19,6 +19,8 @@ import urllib.error
 import uuid
 from pathlib import Path
 
+from mapping import note_midi, note_name, parse_chord
+
 ROOT = Path(__file__).resolve().parent.parent
 
 CONFIG_PATH = ROOT / "config.json"
@@ -48,8 +50,6 @@ TOKEN_FILE = ROOT / "token.json"
 
 AUDIO_EXTS = {".mp3", ".wav", ".flac", ".m4a", ".ogg", ".aac", ".opus", ".wma"}
 
-PT_CLASSES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-
 DURATION_OPTIONS = [
     (2, "8n"), (3, "8n."), (4, "4n"), (6, "4n."), (8, "2n"), (12, "2n."),
     (16, "1m"), (24, "1m."), (32, "2m"), (48, "3m"), (64, "4m"),
@@ -63,20 +63,6 @@ DUR_TICKS = {
 }
 
 MIDI_TPQ = 480
-
-QUALITY_OFFSETS = {
-    "": (0, 4, 7), "maj": (0, 4, 7), "M": (0, 4, 7), "major": (0, 4, 7),
-    "m": (0, 3, 7), "min": (0, 3, 7), "minor": (0, 3, 7),
-    "dim": (0, 3, 6), "aug": (0, 4, 8),
-    "sus2": (0, 2, 7), "sus4": (0, 5, 7), "5": (0, 7, 12),
-    "6": (0, 4, 7, 9), "m6": (0, 3, 7, 9), "7": (0, 4, 7, 10),
-    "maj7": (0, 4, 7, 11), "M7": (0, 4, 7, 11), "m7": (0, 3, 7, 10),
-    "min7": (0, 3, 7, 10), "min6": (0, 3, 7, 9), "maj6": (0, 4, 7, 9),
-    "mmaj7": (0, 3, 7, 11), "mM7": (0, 3, 7, 11), "dim7": (0, 3, 6, 9),
-    "m7b5": (0, 3, 6, 10), "half-dim": (0, 3, 6, 10), "h": (0, 3, 6, 10),
-    "9": (0, 4, 7, 10, 14), "maj9": (0, 4, 7, 11, 14), "m9": (0, 3, 7, 10, 14),
-    "7sus4": (0, 5, 7, 10), "7sus2": (0, 2, 7, 10),
-}
 
 
 def _log_console(msg: str) -> None:
@@ -692,78 +678,10 @@ class Engine:
     # ------------------------------------------------------------------ conversion
 
     @staticmethod
-    def _parse_chord(symbol: str) -> tuple[int, int, list[int], int | None] | None:
-        s = symbol.strip().replace("♯", "#").replace("♭", "b")
-        if not s or s in ("N", "N.C.", "NC", "None", "-"):
-            return None
-        m = re.match(r"^([A-Ga-g])([#b]?)(.*)$", s)
-        if not m:
-            return None
-        pc = (PT_CLASSES.index(m.group(1).upper()) + (1 if m.group(2) == "#" else -1 if m.group(2) == "b" else 0)) % 12
-        rest = m.group(3)
-        slash = None
-        sm = re.match(r"^(.*?)/([A-Ga-g][#b]?|\d{1,2})$", rest)
-        if sm:
-            rest = sm.group(1)
-            bass = sm.group(2)
-            if bass[0].isalpha():
-                slash = (PT_CLASSES.index(bass[0].upper()) + (1 if len(bass) > 1 and bass[1] == "#" else -1 if len(bass) > 1 and bass[1] == "b" else 0)) % 12
-
-        rest = rest.lstrip(":").lstrip(".")
-
-        # 1) try exact (case-sensitive) match first — QUALITY_OFFSETS distinguishes
-        #    "M7" (major 7th) from "m7" (minor 7th), so lowercasing before lookup
-        #    would silently collapse them into the wrong entry.
-        offsets = QUALITY_OFFSETS.get(rest)
-
-        quality = rest.lower()
-        if offsets is None:
-            # 2) fall back to case-insensitive match
-            offsets = QUALITY_OFFSETS.get(quality)
-
-        if offsets is None:
-            q = re.sub(r"[^a-z0-9]", "", quality)
-            if q.startswith("min7") or q.startswith("m7"):
-                offsets = (0, 3, 7, 10)
-            elif q.startswith("maj7"):
-                offsets = (0, 4, 7, 11)
-            elif q and q.startswith("m") and not q.startswith("maj"):
-                offsets = (0, 3, 7)
-            elif q and "sus" in q:
-                offsets = (0, 5, 7)
-            elif q and ("7" in q or "11" in q or "13" in q):
-                offsets = (0, 4, 7, 10)
-            else:
-                offsets = (0, 4, 7)
-
-        tones = []
-        seen = set()
-        for off in (offsets or (0, 4, 7)):
-            pc_tone = (pc + off) % 12
-            if pc_tone not in seen:
-                seen.add(pc_tone)
-                tones.append(pc_tone)
-        return pc, pc, tones, slash
-
-    @staticmethod
     def _duration_steps(steps: int) -> tuple[int, str]:
         steps = max(2, int(round(steps)))
         best = min(DURATION_OPTIONS, key=lambda d: abs(d[0] - steps))
         return best
-
-    @staticmethod
-    def _note_name(midi: int) -> str:
-        pc = midi % 12
-        octave = midi // 12 - 1
-        return f"{PT_CLASSES[pc]}{octave}"
-
-    @staticmethod
-    def _note_midi(name: str) -> int:
-        m = re.match(r"^([A-Ga-g][#b]?)(-?\d+)$", name)
-        if not m:
-            return 60
-        pc = PT_CLASSES.index(m.group(1).upper())
-        return (int(m.group(2)) + 1) * 12 + pc
 
     @staticmethod
     def _vlq(n: int) -> bytes:
@@ -798,7 +716,7 @@ class Engine:
         for n in tone["notes"]:
             t_on = int(n["step"]) * (MIDI_TPQ // 4)
             t_off = t_on + DUR_TICKS.get(n["duration"], 120)
-            mid = self._note_midi(n["note"])
+            mid = note_midi(n["note"])
             vel = max(1, min(127, int(round(float(n["velocity"]) * 127))))
             events.append((t_on, 0x90, mid, vel))
             events.append((t_off, 0x80, mid, 0))
@@ -855,7 +773,7 @@ class Engine:
             return pattern[k % len(pattern)]
 
         for i, seg in enumerate(merged):
-            parsed = self._parse_chord(seg["chord"])
+            parsed = parse_chord(seg["chord"])
             if parsed is None:
                 continue
             root_pc, _, tones, slash_bass = parsed
@@ -872,7 +790,7 @@ class Engine:
             bass_dur = fit_duration(bass_avail)
             notes.append({
                 "step": start,
-                "note": self._note_name(bass_midi),
+                "note": note_name(bass_midi),
                 "duration": bass_dur,
                 "velocity": round(0.42 + 0.05 * (bass_avail / 64.0), 2),
                 "chance": None,
@@ -895,7 +813,7 @@ class Engine:
                         vel = block_vels[t_i] if t_i < len(block_vels) else block_vels[-1] - 0.03
                         notes.append({
                             "step": step,
-                            "note": self._note_name(midi),
+                            "note": note_name(midi),
                             "duration": top_dur,
                             "velocity": round(max(vel, 0.1), 2),
                             "chance": None,
@@ -907,7 +825,7 @@ class Engine:
                     last_midi = midi
                     notes.append({
                         "step": step,
-                        "note": self._note_name(midi),
+                        "note": note_name(midi),
                         "duration": top_dur,
                         "velocity": 0.28,
                         "chance": None,
@@ -926,7 +844,7 @@ class Engine:
 
         progression = []
         for seg in merged:
-            if seg["chord"] not in progression and self._parse_chord(seg["chord"]):
+            if seg["chord"] not in progression and parse_chord(seg["chord"]):
                 progression.append(seg["chord"])
 
         return {
