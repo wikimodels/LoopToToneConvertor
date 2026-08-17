@@ -672,7 +672,7 @@ class Engine:
         if offsets is None:
             q = re.sub(r"[^a-z0-9]", "", quality)
             if q.startswith("maj7") or q.startswith("m7"):
-                pass
+                offsets = (0, 3, 7) if q.startswith("m7") else (0, 4, 7)
             elif q and q.startswith("m"):
                 offsets = (0, 3, 7)
             elif q and "sus" in q:
@@ -681,7 +681,7 @@ class Engine:
                 offsets = (0, 4, 7, 10)
             else:
                 offsets = (0, 4, 7)
-        tones = sorted({(pc + off) % 12 for off in offsets})
+        tones = sorted({(pc + off) % 12 for off in (offsets or (0, 4, 7))})
         return pc, pc, tones, slash
 
     @staticmethod
@@ -853,8 +853,11 @@ class Engine:
         analysis = self._analyze(fpath)
         if not analysis["beats"]:
             self.log("warn", f"[{name}] no beats returned")
-        self.log("info", f"[{name}] bpm={analysis['bpm']} sig={analysis['time_signature']}/4 "
-                         f"chords={analysis['chord_count'] if 'chord_count' not in analysis else len(analysis['chords'])}")
+        chords_count = analysis.get("chord_count")
+        if chords_count is None:
+            chords_count = len(analysis.get("chords") or [])
+        self.log("info", f"[{name}] bpm={analysis.get('bpm')} sig={analysis.get('time_signature')}/4 "
+                         f"chords={chords_count}")
         with self.lock:
             self.state["files"][name]["step"] = "convert"
         tone = self._voicing(analysis)
@@ -938,12 +941,13 @@ class Engine:
                     self.state["files"][name]["status"] = "pending"
                 return
             except Exception as exc:
+                tb = traceback.format_exc()
                 with self.lock:
                     f = self.state["files"][name]
                     f["step"] = ""
                     f["status"] = "failed"
                     f["error"] = str(exc)
-                self.log("error", f"[{name}] FAILED: {exc}")
+                self.log("error", f"[{name}] FAILED: {exc}\n{tb}")
             self.save_state()
 
     # ------------------------------------------------------------------ control
