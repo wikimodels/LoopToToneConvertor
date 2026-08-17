@@ -818,34 +818,53 @@ class Engine:
                 merged.append({"chord": c["chord"], "start": start, "end": end})
 
         arp_pattern = [0, 1, 2, 1]
-        for seg in merged:
+
+        def fit_duration(avail_steps: int) -> str:
+            """Longest musical duration that fits into avail_steps
+            (fallback: shortest possible), so notes never spill into the
+            next segment."""
+            for steps_, name in DURATION_OPTIONS:
+                if steps_ <= avail_steps:
+                    return name
+            return "8n"
+
+        for i, seg in enumerate(merged):
             parsed = self._parse_chord(seg["chord"])
             if parsed is None:
                 continue
             root_pc, _, tones, slash_bass = parsed
             start, end = seg["start"], seg["end"]
+            next_start = merged[i + 1]["start"] if i + 1 < len(merged) else end
+            bass_end = min(end, next_start)
+            if bass_end <= start:
+                bass_end = start + 4
+
             bass_pc = slash_bass if slash_bass is not None else root_pc
 
             bass_midi = bass_pc + 12 * 4
-            bass_steps, bass_dur = self._duration_steps(end - start)
+            bass_avail = bass_end - start
+            bass_dur = fit_duration(bass_avail)
             notes.append({
                 "step": start,
                 "note": self._note_name(bass_midi),
                 "duration": bass_dur,
-                "velocity": round(0.42 + 0.05 * ((end - start) / 64.0), 2),
+                "velocity": round(0.42 + 0.05 * (bass_avail / 64.0), 2),
                 "chance": None,
             })
 
             block_vels = [0.25, 0.22, 0.2]
             k = 0
             step = start
-            while step < end:
+            while step < bass_end:
+                top_dur = "4n"
+                if step + 4 > bass_end:
+                    top_dur = fit_duration(bass_end - step)
                 if k == 0:
                     for i, tone in enumerate(tones[:3]):
                         notes.append({
                             "step": step,
                             "note": self._note_name(tone + 12 * 5),
-                            "duration": "4n",
+                            "duration": top_dur,
                             "velocity": block_vels[i] if i < 3 else 0.2,
                             "chance": None,
                         })
@@ -854,7 +873,7 @@ class Engine:
                     notes.append({
                         "step": step,
                         "note": self._note_name(tone + 12 * 5),
-                        "duration": "4n",
+                        "duration": top_dur,
                         "velocity": 0.28,
                         "chance": None,
                     })
