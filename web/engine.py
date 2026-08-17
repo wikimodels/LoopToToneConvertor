@@ -71,6 +71,7 @@ QUALITY_OFFSETS = {
     "sus2": (0, 2, 7), "sus4": (0, 5, 7), "5": (0, 7, 12),
     "6": (0, 4, 7, 9), "m6": (0, 3, 7, 9), "7": (0, 4, 7, 10),
     "maj7": (0, 4, 7, 11), "M7": (0, 4, 7, 11), "m7": (0, 3, 7, 10),
+    "min7": (0, 3, 7, 10), "min6": (0, 3, 7, 9), "maj6": (0, 4, 7, 9),
     "mmaj7": (0, 3, 7, 11), "mM7": (0, 3, 7, 11), "dim7": (0, 3, 6, 9),
     "m7b5": (0, 3, 6, 10), "half-dim": (0, 3, 6, 10), "h": (0, 3, 6, 10),
     "9": (0, 4, 7, 10, 14), "maj9": (0, 4, 7, 11, 14), "m9": (0, 3, 7, 10, 14),
@@ -701,11 +702,14 @@ class Engine:
         pc = (PT_CLASSES.index(m.group(1).upper()) + (1 if m.group(2) == "#" else -1 if m.group(2) == "b" else 0)) % 12
         rest = m.group(3)
         slash = None
-        sm = re.match(r"^(.*?)/([A-Ga-g][#b]?)$", rest)
+        sm = re.match(r"^(.*?)/([A-Ga-g][#b]?|\d{1,2})$", rest)
         if sm:
             rest = sm.group(1)
             bass = sm.group(2)
-            slash = (PT_CLASSES.index(bass[0].upper()) + (1 if len(bass) > 1 and bass[1] == "#" else -1 if len(bass) > 1 and bass[1] == "b" else 0)) % 12
+            if bass[0].isalpha():
+                slash = (PT_CLASSES.index(bass[0].upper()) + (1 if len(bass) > 1 and bass[1] == "#" else -1 if len(bass) > 1 and bass[1] == "b" else 0)) % 12
+
+        rest = rest.lstrip(":").lstrip(".")
 
         # 1) try exact (case-sensitive) match first — QUALITY_OFFSETS distinguishes
         #    "M7" (major 7th) from "m7" (minor 7th), so lowercasing before lookup
@@ -719,10 +723,10 @@ class Engine:
 
         if offsets is None:
             q = re.sub(r"[^a-z0-9]", "", quality)
-            if q.startswith("maj7") or q.startswith("m7"):
-                offsets = (0, 3, 7) if q.startswith("m7") and not q.startswith("maj7") else (0, 4, 7)
-            elif q.startswith("maj") or q.startswith("major"):
-                offsets = (0, 4, 7)
+            if q.startswith("min7") or q.startswith("m7"):
+                offsets = (0, 3, 7, 10)
+            elif q.startswith("maj7"):
+                offsets = (0, 4, 7, 11)
             elif q and q.startswith("m") and not q.startswith("maj"):
                 offsets = (0, 3, 7)
             elif q and "sus" in q:
@@ -732,7 +736,13 @@ class Engine:
             else:
                 offsets = (0, 4, 7)
 
-        tones = sorted({(pc + off) % 12 for off in (offsets or (0, 4, 7))})
+        tones = []
+        seen = set()
+        for off in (offsets or (0, 4, 7)):
+            pc_tone = (pc + off) % 12
+            if pc_tone not in seen:
+                seen.add(pc_tone)
+                tones.append(pc_tone)
         return pc, pc, tones, slash
 
     @staticmethod
@@ -831,8 +841,6 @@ class Engine:
             else:
                 merged.append({"chord": c["chord"], "start": start, "end": end})
 
-        arp_pattern = [0, 1, 2, 1]
-
         def fit_duration(avail_steps: int) -> str:
             """Longest musical duration that fits into avail_steps
             (fallback: shortest possible), so notes never spill into the
@@ -841,6 +849,10 @@ class Engine:
                 if steps_ <= avail_steps:
                     return name
             return "8n"
+
+        def arp_index(k: int, n_tones: int) -> int:
+            pattern = [0, 1, 2, 3, 2, 1] if n_tones > 3 else [0, 1, 2, 1]
+            return pattern[k % len(pattern)]
 
         for i, seg in enumerate(merged):
             parsed = self._parse_chord(seg["chord"])
@@ -869,24 +881,33 @@ class Engine:
             block_vels = [0.25, 0.22, 0.2]
             k = 0
             step = start
+            last_midi = None
             while step < bass_end:
                 top_dur = "4n"
                 if step + 4 > bass_end:
                     top_dur = fit_duration(bass_end - step)
                 if k == 0:
-                    for i, tone in enumerate(tones[:3]):
+                    for t_i, pc_tone in enumerate(tones):
+                        midi = pc_tone + 12 * 5
+                        if last_midi is not None and midi < last_midi:
+                            midi += 12
+                        last_midi = midi
+                        vel = block_vels[t_i] if t_i < len(block_vels) else block_vels[-1] - 0.03
                         notes.append({
                             "step": step,
-                            "note": self._note_name(tone + 12 * 5),
+                            "note": self._note_name(midi),
                             "duration": top_dur,
-                            "velocity": block_vels[i] if i < 3 else 0.2,
+                            "velocity": round(max(vel, 0.1), 2),
                             "chance": None,
                         })
                 else:
-                    tone = tones[arp_pattern[k % 4]]
+                    midi = tones[arp_index(k, len(tones))] + 12 * 5
+                    if last_midi is not None and midi < last_midi:
+                        midi += 12
+                    last_midi = midi
                     notes.append({
                         "step": step,
-                        "note": self._note_name(tone + 12 * 5),
+                        "note": self._note_name(midi),
                         "duration": top_dur,
                         "velocity": 0.28,
                         "chance": None,
