@@ -260,9 +260,18 @@ class Engine:
                                    "attempts": 0, "done_at": None}
                     order.append(name)
                     added += 1
+            removed = 0
+            for name in list(files):
+                if name not in names and files[name]["status"] != "working":
+                    del files[name]
+                    if name in order:
+                        order.remove(name)
+                    removed += 1
             self.state["order"] = order
         if added:
             self.log("info", f"Added {added} new file(s), total {len(names)}")
+        if removed:
+            self.log("info", f"Removed {removed} stale file(s) missing from source")
 
     def pending_names(self) -> list[str]:
         with self.lock:

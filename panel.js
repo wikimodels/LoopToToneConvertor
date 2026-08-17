@@ -263,6 +263,7 @@ document.addEventListener('click', (e) => {
       t.disabled = true;
       if (!await ensureServer()) { t.disabled = false; return; }
       await control(state.running ? 'stop' : 'start').catch(() => {});
+      refresh();
       t.disabled = false;
     })();
   }
