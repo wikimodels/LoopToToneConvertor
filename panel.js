@@ -144,9 +144,6 @@ function render() {
   const run = $('btnRun');
   run.textContent = state.running ? 'Стоп' : 'Запустить';
   run.classList.toggle('danger', !!state.running);
-  $('btnPause').disabled = !state.running || state.paused;
-  $('btnResume').disabled = !state.running || !state.paused;
-  $('btnRetry').disabled = t.failed === 0;
 
   const work = state.files.find(f => f.status === 'working');
   if (work) {
@@ -302,15 +299,6 @@ document.addEventListener('click', (e) => {
         box.innerHTML = '<span class="bad">Токен ещё не пойман. Обновите вкладку chordmini.me или подождите — перехватчик активен постоянно, токен доставится сам при первом запросе к Firebase (если движок запущен).</span>';
       }
     })();
-  }
-  else if (t.id === 'btnPause') control('pause');
-  else if (t.id === 'btnResume') control('resume');
-  else if (t.id === 'btnRescan') control('rescan');
-  else if (t.id === 'btnRetry') control('retry-failed');
-  else if (t.id === 'btnReset') {
-    $('logBox').innerHTML = '';
-    lastLogSeq = 0;
-    control('reset');
   }
   else if (t.id === 'btnOpenOut') api('/api/open-output').catch(() => {});
   else if (t.id === 'btnOpenMidi') api('/api/open-midi').catch(() => {});

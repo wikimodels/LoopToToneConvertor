@@ -87,12 +87,9 @@ function render() {
     acBadge.textContent = 'AppCheck: ...';
   }
 
-  const run = $('btnRun'), pause = $('btnPause'), resume = $('btnResume');
+  const run = $('btnRun');
   run.textContent = state.running ? 'Стоп' : 'Запустить';
   run.classList.toggle('danger', !!state.running);
-  pause.disabled = !state.running || state.paused;
-  resume.disabled = !state.running || !state.paused;
-  $('btnRetry').disabled = t.failed === 0;
 
   const work = state.files.find(f => f.status === 'working');
   if (work) {
@@ -210,10 +207,6 @@ async function saveSettings() {
 document.addEventListener('click', (e) => {
   const t = e.target;
   if (t.id === 'btnRun') control(state.running ? 'stop' : 'start');
-  else if (t.id === 'btnPause') control('pause');
-  else if (t.id === 'btnResume') control('resume');
-  else if (t.id === 'btnRescan') control('rescan');
-  else if (t.id === 'btnRetry') control('retry-failed');
   else if (t.id === 'btnOpenOut') api('/api/open-output').catch(() => {});
   else if (t.id === 'btnOpenMidi') api('/api/open-midi').catch(() => {});
   else if (t.id === 'btnOpenSrc') api('/api/open-source').catch(() => {});
