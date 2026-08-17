@@ -6,6 +6,7 @@ Pure Python stdlib (no third-party dependencies).
 
 from __future__ import annotations
 
+import faulthandler
 import json
 import math
 import os
@@ -106,6 +107,34 @@ class Engine:
         self._log_seq = self.state.get("log_seq", 0)
         self._api_last_check = 0.0
         self._api_ok = None
+        self.lock = threading.RLock()
+        threading.Thread(target=self._watchdog, daemon=True).start()
+
+    # ------------------------------------------------------------------ watchdog
+
+    def _watchdog(self) -> None:
+        """If the engine lock is held uninterruptibly this process must die
+        on its own: otherwise the panel would hang forever (buttons dead).
+        When that happens we dump thread stacks (debug-stacks.txt) so the
+        culprit is visible on the next restart."""
+        misses = 0
+        while True:
+            time.sleep(20)
+            ok = self.lock.acquire(timeout=2)
+            if ok:
+                self.lock.release()
+                misses = 0
+                continue
+            misses += 1
+            self.log("error", f"watchdog: engine lock unresponsive ({misses}/3)")
+            if misses < 3:
+                continue
+            try:
+                with open(str(ROOT / "debug-stacks.txt"), "w", encoding="utf-8") as fh:
+                    faulthandler.dump_traceback(file=fh)
+            except Exception:
+                pass
+            os._exit(1)
 
     # ------------------------------------------------------------------ io
 
