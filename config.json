@@ -6,6 +6,7 @@
   "beat_model": "madmom",
   "chord_model": "chord-cnn-lstm",
   "detect_key": true,
+  "snap_grid": true,
   "call_interval_sec": 8,
   "autostart": false
 }

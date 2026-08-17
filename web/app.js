@@ -119,6 +119,7 @@ function fillSettings() {
   $('setChordModel').value = c.chord_model;
   $('setInterval').value = c.call_interval_sec;
   $('setDetectKey').value = String(!!c.detect_key);
+  $('setSnapGrid').value = String(c.snap_grid !== false);
 }
 
 const STATUSHINT = { pending: '', working: 'работаем…', done: 'готово', failed: '' };
@@ -204,6 +205,7 @@ async function saveSettings() {
     chord_model: $('setChordModel').value,
     call_interval_sec: parseInt($('setInterval').value, 10) || 33,
     detect_key: $('setDetectKey').value === 'true',
+    snap_grid: $('setSnapGrid').value === 'true',
   };
   try {
     const r = await api('/api/settings', {

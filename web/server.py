@@ -198,7 +198,7 @@ class Handler(BaseHTTPRequestHandler):
                     cfg[key] = max(5, min(600, int(val)))
                 except (TypeError, ValueError):
                     pass
-            elif key in ("detect_key",):
+            elif key in ("detect_key", "snap_grid"):
                 cfg[key] = bool(val)
             elif key in ("beat_model", "chord_model", "api_base"):
                 cfg[key] = str(val).strip()

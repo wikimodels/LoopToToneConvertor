@@ -42,6 +42,7 @@ DEFAULT_CONFIG = {
     "detect_key": True,
     "call_interval_sec": 33,
     "autostart": False,
+    "snap_grid": True,
 }
 TOKEN_FILE = ROOT / "token.json"
 
@@ -810,8 +811,12 @@ class Engine:
         for c in chords:
             raw_start = round(c["start"] * sps)
             raw_end = max(raw_start + 1, round(c["end"] * sps))
-            start = snap(raw_start)
-            end = max(start + 4, snap(raw_end))
+            if self.config.get("snap_grid", True):
+                start = snap(raw_start)
+                end = max(start + 4, snap(raw_end))
+            else:
+                start = raw_start
+                end = raw_end
             if merged and merged[-1]["chord"] == c["chord"] and merged[-1]["end"] == start:
                 merged[-1]["end"] = end
             else:
