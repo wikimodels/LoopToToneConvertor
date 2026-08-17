@@ -140,12 +140,10 @@ function renderFiles() {
       ? '<span class="spin"></span>' + (f.step || 'подготовка')
       : '<span class="stepdone">' + (f.step || '') + '</span>';
     const actions = f.json_file
-      ? `<button data-dl="${f.json_file}" title="Скачать JSON">⬇</button>
-         <button data-open="${f.json_file}" title="Открыть JSON">📂</button>`
+      ? `<button data-dl="${f.json_file}" title="Скачать JSON">⬇</button>`
       : '';
     const midiActions = f.midi_file
-      ? `<button data-mdl="${f.midi_file}" title="Скачать MIDI">🎹</button>
-         <button data-openm="${f.midi_file}" title="Открыть MIDI">📁</button>`
+      ? `<button data-mdl="${f.midi_file}" title="Скачать MIDI">🎹</button>`
       : '';
     const error = f.error ? `<div class="err" title="${f.error.replace(/"/g, '&quot;')}">${f.error.length > 120 ? f.error.slice(0, 120) + '…' : f.error}</div>` : '';
     tr.innerHTML =
@@ -234,8 +232,6 @@ document.addEventListener('click', (e) => {
     document.body.appendChild(a);
     a.click();
     a.remove();
-  } else if (t.dataset.open) {
-    api('/api/open-file?name=' + encodeURIComponent(t.dataset.open)).catch(() => {});
   } else if (t.dataset.mdl) {
     const a = document.createElement('a');
     a.href = '/api/file/' + encodeURIComponent(t.dataset.mdl);
@@ -243,8 +239,6 @@ document.addEventListener('click', (e) => {
     document.body.appendChild(a);
     a.click();
     a.remove();
-  } else if (t.dataset.openm) {
-    api('/api/open-file?name=' + encodeURIComponent(t.dataset.openm)).catch(() => {});
   }
 });
 

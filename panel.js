@@ -200,11 +200,9 @@ function renderFiles() {
     let acts = '';
     if (f.json_file) {
       acts += `<button data-dl="${f.json_file}" title="Скачать JSON">⬇</button>`;
-      acts += `<button data-open="${f.json_file}" title="Открыть JSON">📂</button>`;
     }
     if (f.midi_file) {
       acts += `<button data-mdl="${f.midi_file}" title="Скачать MIDI">🎹</button>`;
-      acts += `<button data-openm="${f.midi_file}" title="Открыть MIDI">📁</button>`;
     }
     const error = f.error
       ? `<div class="err" title="${f.error.replace(/"/g, '&quot;')}">${f.error.length > 110 ? f.error.slice(0, 110) + '…' : f.error}</div>`
@@ -332,8 +330,6 @@ document.addEventListener('click', (e) => {
     document.body.appendChild(a);
     a.click();
     a.remove();
-  } else if (t.dataset.open) {
-    api('/api/open-file?name=' + encodeURIComponent(t.dataset.open)).catch(() => {});
   } else if (t.dataset.mdl) {
     const a = document.createElement('a');
     a.href = API + '/api/file/' + encodeURIComponent(t.dataset.mdl);
@@ -341,8 +337,6 @@ document.addEventListener('click', (e) => {
     document.body.appendChild(a);
     a.click();
     a.remove();
-  } else if (t.dataset.openm) {
-    api('/api/open-file?name=' + encodeURIComponent(t.dataset.openm)).catch(() => {});
   }
 });
 
