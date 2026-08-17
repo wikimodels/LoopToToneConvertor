@@ -117,8 +117,6 @@ function render() {
   const t = state.totals;
   $('stTotal').textContent = t.total;
   $('stDone').textContent = t.done;
-  $('stWork').textContent = t.working;
-  $('stQueued').textContent = t.pending;
   $('stFailed').textContent = t.failed;
   $('stEta').textContent = fmtEta(state.eta);
 
