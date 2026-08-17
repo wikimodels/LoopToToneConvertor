@@ -1,7 +1,7 @@
 {
   "source": "C:\\Users\\Vitali\\Downloads\\AIMusicTools\\TrimmedAudio",
-  "output": "C:\\Users\\Vitali\\Downloads\\AIMusicTools\\LoopConvertorJSON",
-  "midi_dir": "C:\\Users\\Vitali\\Downloads\\AIMusicTools\\LoopConvertorMIDI",
+  "raw_dir": "C:\\Users\\Vitali\\Downloads\\AIMusicTools\\LoopConvertorRawSON",
+  "output": "C:\\Users\\Vitali\\Downloads\\AIMusicTools\\LoopConvertorToneJSON",
   "api_base": "https://chordmini.me",
   "beat_model": "madmom",
   "chord_model": "chord-cnn-lstm",

@@ -64,8 +64,8 @@ class Handler(BaseHTTPRequestHandler):
     def _output_dir(self) -> Path:
         return Path(ENGINE.config["output"])
 
-    def _midi_dir(self) -> Path:
-        raw = ENGINE.config.get("midi_dir") or str(Path(ENGINE.config["output"]) / "midi")
+    def _raw_dir(self) -> Path:
+        raw = ENGINE.config.get("raw_dir") or str(Path(ENGINE.config["output"]) / "raw")
         return Path(raw)
 
     # ---- routes -----------------------------------------------------------
@@ -93,8 +93,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._open_dir(self._source_dir())
         if path == "/api/open-output":
             return self._open_dir(self._output_dir())
-        if path == "/api/open-midi":
-            return self._open_dir(self._midi_dir())
+        if path == "/api/open-raw":
+            return self._open_dir(self._raw_dir())
         if path == "/api/open-file":
             name = self.path.split("?", 1)[1] if "?" in self.path else ""
             return self._open_file(name)
@@ -158,7 +158,7 @@ class Handler(BaseHTTPRequestHandler):
         for key, val in body.items():
             if key not in cfg:
                 continue
-            if key in ("source", "output", "midi_dir"):
+            if key in ("source", "output", "raw_dir"):
                 val = str(val).strip()
                 if not val:
                     continue
@@ -193,7 +193,7 @@ class Handler(BaseHTTPRequestHandler):
         return {"files": items}
 
     def _resolve_out(self, name: str) -> Path | None:
-        for base in (self._output_dir(), self._midi_dir()):
+        for base in (self._output_dir(), self._raw_dir()):
             p = base / Path(name).name
             if p.is_file():
                 return p

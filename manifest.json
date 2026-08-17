@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "LoopToToneConvertor",
   "version": "1.1.0",
-  "description": "Управление LoopToToneConvertor: биты/аккорды/тональность, JSON+MIDI, прогресс. Ловит App Check токен на chordmini.me и передаёт движку.",
+  "description": "Управление LoopToToneConvertor: биты/аккорды/тональность, JSON для Tone.js + сырой анализ, прогресс. Ловит App Check токен на chordmini.me и передаёт движку.",
   "permissions": ["storage", "sidePanel", "tabs", "webRequest"],
   "host_permissions": [
     "https://chordmini.me/*",

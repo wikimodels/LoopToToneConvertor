@@ -152,7 +152,7 @@ function fillSettings() {
   const c = state.config;
   if (document.activeElement !== $('setSource')) $('setSource').value = c.source;
   if (document.activeElement !== $('setOutput')) $('setOutput').value = c.output;
-  if (document.activeElement !== $('setMidiDir')) $('setMidiDir').value = c.midi_dir || '';
+  if (document.activeElement !== $('setRawDir')) $('setRawDir').value = c.raw_dir || '';
   $('setApi').value = c.api_base;
   $('setBeatModel').value = c.beat_model;
   $('setChordModel').value = c.chord_model;
@@ -181,9 +181,6 @@ function renderFiles() {
     let acts = '';
     if (f.json_file) {
       acts += `<button data-dl="${f.json_file}" title="Скачать JSON">⬇</button>`;
-    }
-    if (f.midi_file) {
-      acts += `<button data-mdl="${f.midi_file}" title="Скачать MIDI">🎹</button>`;
     }
     const error = f.error
       ? `<div class="err" title="${f.error.replace(/"/g, '&quot;')}">${f.error.length > 110 ? f.error.slice(0, 110) + '…' : f.error}</div>`
@@ -222,7 +219,7 @@ async function saveSettings() {
   const body = {
     source: $('setSource').value.trim(),
     output: $('setOutput').value.trim(),
-    midi_dir: $('setMidiDir').value.trim(),
+    raw_dir: $('setRawDir').value.trim(),
     api_base: $('setApi').value.trim(),
     beat_model: $('setBeatModel').value,
     chord_model: $('setChordModel').value,
@@ -286,7 +283,7 @@ document.addEventListener('click', (e) => {
     })();
   }
   else if (t.id === 'btnOpenOut') api('/api/open-output').catch(() => {});
-  else if (t.id === 'btnOpenMidi') api('/api/open-midi').catch(() => {});
+  else if (t.id === 'btnOpenRaw') api('/api/open-raw').catch(() => {});
   else if (t.id === 'btnOpenSrc') api('/api/open-source').catch(() => {});
   else if (t.id === 'btnSaveSettings') saveSettings();
   else if (t.id === 'btnClearLog') { $('logBox').innerHTML = ''; lastLogSeq = 0; }

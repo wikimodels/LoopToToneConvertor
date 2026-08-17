@@ -33,8 +33,8 @@ APPCHECK_EXCHANGE = ("https://content-firebaseappcheck.googleapis.com/v1/project
 
 DEFAULT_CONFIG = {
     "source": r"C:\Users\Vitali\Downloads\AIMusicTools\TrimmedAudio",
-    "output": r"C:\Users\Vitali\Downloads\AIMusicTools\LoopConvertorJSON",
-    "midi_dir": r"C:\Users\Vitali\Downloads\AIMusicTools\LoopConvertorMIDI",
+    "raw_dir": r"C:\Users\Vitali\Downloads\AIMusicTools\LoopConvertorRawSON",
+    "output": r"C:\Users\Vitali\Downloads\AIMusicTools\LoopConvertorToneJSON",
     "api_base": "https://chordmini.me",
     "beat_model": "madmom",
     "chord_model": "chord-cnn-lstm",
@@ -650,7 +650,7 @@ class Engine:
         return key, scale
 
     def _save_analysis(self, name: str, analysis: dict) -> None:
-        path = self._output_dir() / f"{Path(name).stem}.analysis.json"
+        path = self._raw_dir() / f"{Path(name).stem}.analysis.json"
         path.write_text(json.dumps({
             "source": "chordmini API",
             "bpm": analysis["bpm"],
@@ -890,21 +890,14 @@ class Engine:
         )}]
         out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
-        midi_dir = self._midi_dir()
-        midi_name = f"{tone['name']}.mid"
-        midi_path = midi_dir / midi_name
-        self._write_midi(tone, midi_path)
-
         self.log("info", f"[{name}] wrote {out_path} (steps={tone['steps']}, "
                          f"notes={len(tone['notes'])}, prog={' '.join(tone['progression'])})")
-        self.log("info", f"[{name}] wrote {midi_path}")
         with self.lock:
             self.state["files"][name].update({
                 "status": "done",
                 "step": "",
                 "error": None,
                 "json_file": json_name,
-                "midi_file": midi_name,
                 "done_at": time.time(),
                 "result": {
                     "bpm": tone["bpm"],
@@ -924,8 +917,8 @@ class Engine:
         out.mkdir(parents=True, exist_ok=True)
         return out
 
-    def _midi_dir(self) -> Path:
-        raw = self.config.get("midi_dir") or str(Path(self.config["output"]) / "midi")
+    def _raw_dir(self) -> Path:
+        raw = self.config.get("raw_dir") or str(Path(self.config["output"]) / "raw")
         d = Path(raw)
         d.mkdir(parents=True, exist_ok=True)
         return d
@@ -1044,7 +1037,6 @@ class Engine:
                     "error": f["error"],
                     "size": f.get("size", 0),
                     "json_file": f.get("json_file"),
-                    "midi_file": f.get("midi_file"),
                     "result": f.get("result"),
                     "attempts": f.get("attempts", 0),
                     "done_at": f.get("done_at"),

@@ -113,7 +113,7 @@ function fillSettings() {
   const c = state.config;
   if (document.activeElement !== $('setSource')) $('setSource').value = c.source;
   if (document.activeElement !== $('setOutput')) $('setOutput').value = c.output;
-  if (document.activeElement !== $('setMidiDir')) $('setMidiDir').value = c.midi_dir || '';
+  if (document.activeElement !== $('setRawDir')) $('setRawDir').value = c.raw_dir || '';
   $('setApi').value = c.api_base;
   $('setBeatModel').value = c.beat_model;
   $('setChordModel').value = c.chord_model;
@@ -138,9 +138,6 @@ function renderFiles() {
     const actions = f.json_file
       ? `<button data-dl="${f.json_file}" title="Скачать JSON">⬇</button>`
       : '';
-    const midiActions = f.midi_file
-      ? `<button data-mdl="${f.midi_file}" title="Скачать MIDI">🎹</button>`
-      : '';
     const error = f.error ? `<div class="err" title="${f.error.replace(/"/g, '&quot;')}">${f.error.length > 120 ? f.error.slice(0, 120) + '…' : f.error}</div>` : '';
     tr.innerHTML =
       `<td class="fname" title="${f.name}">${f.name}
@@ -157,7 +154,7 @@ function renderFiles() {
        <td>${r.notes || ''}</td>
        <td class="prog" title="${(r.progression || []).join(' ')}">${(r.progression || []).join(' ')}</td>
        <td class="jsoncell">${f.json_file ? `<a class="link" href="/api/file/${encodeURIComponent(f.json_file)}" download="${f.json_file}">${f.json_file}</a>` : ''}</td>
-       <td class="acts">${actions}${midiActions}</td>`;
+       <td class="acts">${actions}</td>`;
     tbody.appendChild(tr);
   }
 }
@@ -185,7 +182,7 @@ async function saveSettings() {
   const body = {
     source: $('setSource').value.trim(),
     output: $('setOutput').value.trim(),
-    midi_dir: $('setMidiDir').value.trim(),
+    raw_dir: $('setRawDir').value.trim(),
     api_base: $('setApi').value.trim(),
     beat_model: $('setBeatModel').value,
     chord_model: $('setChordModel').value,
@@ -208,7 +205,7 @@ document.addEventListener('click', (e) => {
   const t = e.target;
   if (t.id === 'btnRun') control(state.running ? 'stop' : 'start');
   else if (t.id === 'btnOpenOut') api('/api/open-output').catch(() => {});
-  else if (t.id === 'btnOpenMidi') api('/api/open-midi').catch(() => {});
+  else if (t.id === 'btnOpenRaw') api('/api/open-raw').catch(() => {});
   else if (t.id === 'btnOpenSrc') api('/api/open-source').catch(() => {});
   else if (t.id === 'btnSaveSettings') saveSettings();
   else if (t.id === 'btnClearLog') { $('logBox').innerHTML = ''; lastLogSeq = 0; }
@@ -216,13 +213,6 @@ document.addEventListener('click', (e) => {
     const a = document.createElement('a');
     a.href = '/api/file/' + encodeURIComponent(t.dataset.dl);
     a.download = t.dataset.dl;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  } else if (t.dataset.mdl) {
-    const a = document.createElement('a');
-    a.href = '/api/file/' + encodeURIComponent(t.dataset.mdl);
-    a.download = t.dataset.mdl;
     document.body.appendChild(a);
     a.click();
     a.remove();
