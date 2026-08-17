@@ -816,9 +816,9 @@ class Engine:
             parsed = self._parse_chord(seg["chord"])
             if parsed is None:
                 continue
-            _, _, tones, slash_bass = parsed
+            root_pc, _, tones, slash_bass = parsed
             start, end = seg["start"], seg["end"]
-            bass_pc = slash_bass if slash_bass is not None else tones[0]
+            bass_pc = slash_bass if slash_bass is not None else root_pc
 
             bass_midi = bass_pc + 12 * 4
             bass_steps, bass_dur = self._duration_steps(end - start)
