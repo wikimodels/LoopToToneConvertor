@@ -143,19 +143,6 @@ function render() {
   run.textContent = state.running ? 'Стоп' : 'Запустить';
   run.classList.toggle('danger', !!state.running);
 
-  const work = state.files.find(f => f.status === 'working');
-  if (work) {
-    $('currentInfo').textContent = `Выполняется: ${work.name} → ${work.step || 'подготовка'}`;
-  } else if (state.running && !state.paused) {
-    $('currentInfo').textContent = 'Обработка активна, ожидание следующего файла (лимит API)…';
-  } else if (state.paused) {
-    $('currentInfo').textContent = 'Пауза';
-  } else if (t.total && t.done + t.failed === t.total) {
-    $('currentInfo').textContent = 'Очередь завершена';
-  } else {
-    $('currentInfo').textContent = 'ничего не выполняется';
-  }
-
   fillSettings();
   renderFiles();
   renderLog();
