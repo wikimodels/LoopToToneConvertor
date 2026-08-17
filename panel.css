@@ -122,6 +122,8 @@ button:hover:not(:disabled) { border-color: var(--acc); }
 button:disabled { opacity: 0.4; cursor: default; }
 button.primary { background: var(--acc); border-color: var(--acc); color: #fff; }
 button.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+button.ghost { background: transparent; border-color: var(--line); color: var(--dim); }
+button.ghost:hover:not(:disabled) { border-color: var(--bad); color: var(--bad); }
 
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .grid2-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

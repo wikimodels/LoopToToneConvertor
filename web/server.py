@@ -136,6 +136,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_json({"ok": False, "error": "unknown action"}, 400)
         if path == "/api/appcheck-token":
             return self._handle_appcheck_token()
+        if path == "/api/clear":
+            return self._handle_clear()
         if path == "/api/settings":
             return self._handle_settings()
         return self._send_bytes(b"not found", "text/plain", 404)
@@ -151,6 +153,29 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_json({"ok": False, "error": "invalid token"}, 400)
         ENGINE.set_appcheck_token(token, source=body.get("delivered_from", "extension"))
         return self._send_json({"ok": True, "status": ENGINE.appcheck_status()})
+
+    def _handle_clear(self):
+        body = self._read_json()
+        targets = []
+        if body.get("raw"):
+            targets.append("raw")
+        if body.get("output"):
+            targets.append("output")
+        if not targets:
+            return self._send_json({"ok": False, "error": "no targets"}, 400)
+        removed = {}
+        for target in targets:
+            base = self._raw_dir() if target == "raw" else self._output_dir()
+            count = 0
+            for p in base.glob("*.json"):
+                try:
+                    p.unlink()
+                    count += 1
+                except OSError:
+                    pass
+            removed[target] = count
+        ENGINE.save_state()
+        return self._send_json({"ok": True, "removed": removed})
 
     def _handle_settings(self):
         body = self._read_json()

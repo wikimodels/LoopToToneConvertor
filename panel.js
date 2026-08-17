@@ -214,6 +214,22 @@ function renderLog() {
   box.scrollTop = box.scrollHeight;
 }
 
+async function clearResults(raw) {
+  const what = raw ? 'Raw' : 'JSON';
+  if (!confirm(`Удалить все файлы из папки ${what}?`)) return;
+  try {
+    const r = await api('/api/clear', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [raw ? 'raw' : 'output']: true }),
+    });
+    refresh();
+    if (!r.ok) alert('Ошибка очистки: ' + (r.error || ''));
+  } catch (e) {
+    alert('Ошибка очистки: ' + e.message);
+  }
+}
+
 async function saveSettings() {
   $('settingsMsg').textContent = 'сохраняю…';
   const body = {
@@ -285,6 +301,7 @@ document.addEventListener('click', (e) => {
   else if (t.id === 'btnOpenOut') api('/api/open-output').catch(() => {});
   else if (t.id === 'btnOpenRaw') api('/api/open-raw').catch(() => {});
   else if (t.id === 'btnOpenSrc') api('/api/open-source').catch(() => {});
+  else if (t.id === 'btnClearOut' || t.id === 'btnClearRaw') clearResults(t.id === 'btnClearRaw');
   else if (t.id === 'btnSaveSettings') saveSettings();
   else if (t.id === 'btnClearLog') { $('logBox').innerHTML = ''; lastLogSeq = 0; }
   else if (t.dataset.dl) {
