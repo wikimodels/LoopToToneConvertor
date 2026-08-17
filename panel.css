@@ -71,6 +71,8 @@ details.card .grid2, details.card .row { margin-top: 10px; }
 
 .srv-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .srv-row .dim { color: var(--dim); font-size: 12px; }
+.srv-btns { display: flex; gap: 6px; }
+.srv-btns button { white-space: nowrap; }
 .srv-hint {
   margin-top: 8px; background: var(--card2); border: 1px solid var(--line);
   border-radius: 7px; padding: 8px; font-size: 11px; color: var(--dim);
@@ -78,6 +80,15 @@ details.card .grid2, details.card .row { margin-top: 10px; }
 }
 .srv-hint code { color: var(--txt); background: var(--bg); padding: 1px 5px; border-radius: 4px; }
 .srv-hint button { margin-top: 6px; }
+.bridge {
+  margin-top: 8px; font-size: 11px; line-height: 1.6; color: var(--dim);
+  background: var(--card2); border: 1px solid var(--line); border-radius: 7px;
+  padding: 8px; word-break: break-word;
+}
+.bridge .ok { color: var(--ok); }
+.bridge .bad { color: var(--bad); }
+.bridge button { margin-top: 6px; }
+
 .hidden { display: none; }
 
 .stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }

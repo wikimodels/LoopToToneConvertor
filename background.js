@@ -20,6 +20,14 @@ const deliver = async (token) => {
     if (res.ok) {
       lastToken = token;
       chrome.storage.local.remove("pendingToken");
+      chrome.storage.local.set({
+        bridge: {
+          seen_at: Date.now(),
+          delivered_at: Date.now(),
+          ok: true,
+          error: null,
+        },
+      });
       try {
         chrome.action.setBadgeText({ text: "ok" });
       } catch (e) {
@@ -27,17 +35,46 @@ const deliver = async (token) => {
       }
       return true;
     }
+    let bodyText;
     try {
-      const body = await res.json();
+      bodyText = await res.text();
+    } catch (e) {
+      bodyText = "";
+    }
+    try {
+      const body = JSON.parse(bodyText);
       if (body && body.token && body.token !== token) {
         chrome.storage.local.remove("pendingToken");
       }
+      chrome.storage.local.set({
+        bridge: {
+          seen_at: Date.now(),
+          delivered_at: null,
+          ok: false,
+          error: "server replied " + res.status + ": " + (body.error || bodyText),
+        },
+      });
     } catch (e) {
-      /* ignore */
+      chrome.storage.local.set({
+        bridge: {
+          seen_at: Date.now(),
+          delivered_at: null,
+          ok: false,
+          error: "server replied " + res.status + ": " + bodyText,
+        },
+      });
     }
     retry(token);
     return false;
   } catch (e) {
+    chrome.storage.local.set({
+      bridge: {
+        seen_at: Date.now(),
+        delivered_at: null,
+        ok: false,
+        error: String(e && e.message || e),
+      },
+    });
     retry(token);
     return false;
   }
@@ -55,6 +92,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         deliver(data.pendingToken);
       }
     });
+  }
+  if (msg && msg.type === "flush-pending") {
+    chrome.storage.local.get(["pendingToken"], (data) => {
+      if (data && data.pendingToken) {
+        deliver(data.pendingToken);
+      }
+    });
+  }
+  if (msg && msg.type === "get-appcheck-token") {
+    grabAppCheckToken()
+      .then(async (res) => {
+        if (res.ok && res.token) {
+          const delivered = await deliver(res.token);
+          sendResponse({ ok: true, delivered, token_len: res.token.length });
+        } else {
+          sendResponse(res);
+        }
+      })
+      .catch((e) => sendResponse({ ok: false, error: String(e && e.message || e) }));
+    return true;
   }
   if (msg && msg.type === "start-server") {
     let port;
@@ -111,3 +168,86 @@ chrome.runtime.onInstalled.addListener(() => {
     /* older browsers: fall back to popup */
   }
 });
+
+function grabAppCheckToken() {
+  const TIMEOUT = 75000;
+  return (async () => {
+    let tabs = [];
+    try {
+      tabs = await chrome.tabs.query({ url: ["https://chordmini.me/*"] });
+    } catch (e) {
+      tabs = [];
+    }
+    const existing = tabs.find((t) => !t.incognito);
+    let tab = existing;
+    if (!tab) {
+      tab = await chrome.tabs.create({ url: "https://chordmini.me/" });
+    } else {
+      try {
+        await chrome.tabs.update(tab.id, { active: true });
+      } catch (e) { /* ignore */ }
+    }
+
+    let attached = false;
+    try {
+      await new Promise((resolve, reject) => {
+        chrome.debugger.attach({ tabId: tab.id }, "1.3", () => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            attached = true;
+            resolve();
+          }
+        });
+      });
+    } catch (e) {
+      return { ok: false, error: "debugger: " + (e && e.message || e) };
+    }
+
+    return await new Promise((resolve) => {
+      let done = false;
+      const finish = (res) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        if (attached) {
+          try {
+            chrome.debugger.onEvent.removeListener(onEvent);
+            chrome.debugger.detach({ tabId: tab.id });
+          } catch (e) { /* ignore */ }
+        }
+        resolve(res);
+      };
+      const timer = setTimeout(() => {
+        finish({ ok: false, error: "Обмен токеном не замечен за 75 секунд. " +
+          "Перезагрузите вкладку chordmini.me и нажмите кнопку ещё раз." });
+      }, TIMEOUT);
+
+      const onEvent = (src, method, params) => {
+        if (src.tabId !== tab.id) return;
+        if (method === "Network.responseReceived") {
+          const url = (params && params.response && params.response.url) || "";
+          if (!/exchangeRecaptcha/i.test(url)) return;
+          chrome.debugger.sendCommand(
+            { tabId: tab.id },
+            "Network.getResponseBody",
+            { requestId: params.requestId },
+            (res) => {
+              if (res && res.body) {
+                try {
+                  const data = JSON.parse(res.body);
+                  const token = (data && data.appCheckToken && data.appCheckToken.token) ||
+                    (data && data.token);
+                  if (typeof token === "string" && token.length > 80) {
+                    finish({ ok: true, token });
+                  }
+                } catch (e) { /* not JSON */ }
+              }
+            }
+          );
+        }
+      };
+      chrome.debugger.onEvent.addListener(onEvent);
+    });
+  })();
+}

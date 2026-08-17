@@ -21,6 +21,16 @@
 
   const reportToken = (token) => {
     try {
+      chrome.storage.local.set({
+        bridge: {
+          seen_at: Date.now(),
+          len: token.length,
+        },
+      });
+    } catch (e) {
+      /* ignore */
+    }
+    try {
       chrome.runtime.sendMessage({ type: "appcheck-token", token });
     } catch (e) {
       /* ignore */

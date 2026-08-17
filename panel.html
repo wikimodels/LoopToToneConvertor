@@ -20,8 +20,12 @@
   <section class="card">
     <div class="srv-row">
       <span id="srvStatus" class="dim">сервер: проверка…</span>
-      <button id="btnStartServer">Запустить сервер</button>
+      <span class="srv-btns">
+        <button id="btnGetToken" title="Перехватить обмен App Check на chordmini.me и доставить токен движку">Получить токен</button>
+        <button id="btnStartServer">Запустить сервер</button>
+      </span>
     </div>
+    <div id="bridgeStatus" class="bridge hidden"></div>
     <div id="srvHint" class="srv-hint hidden"></div>
   </section>
 

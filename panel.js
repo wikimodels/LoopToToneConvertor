@@ -273,6 +273,31 @@ document.addEventListener('click', (e) => {
     })();
   }
   else if (t.id === 'btnStartServer') ensureServer();
+  else if (t.id === 'btnGetToken') {
+    (async () => {
+      const btn = t;
+      btn.disabled = true;
+      btn.textContent = 'слушаю… (до 75с)';
+      $('bridgeStatus').classList.remove('hidden');
+      $('bridgeStatus').innerHTML = 'Жду обмен App Check на chordmini.me… (перезагрузите вкладку, если долго)';
+      let resp;
+      try {
+        resp = await chrome.runtime.sendMessage({ type: 'get-appcheck-token' });
+      } catch (e) {
+        resp = { ok: false, error: String(e && e.message || e) };
+      }
+      btn.disabled = false;
+      btn.textContent = 'Получить токен';
+      if (resp && resp.ok && resp.delivered) {
+        $('bridgeStatus').innerHTML = '<span class="ok">Токен получен и доставлен движку ✓ Можно запускать обработку</span>';
+        refresh();
+      } else if (resp && resp.ok && !resp.delivered) {
+        $('bridgeStatus').innerHTML = '<span class="bad">Токен получен, но доставка на движок не удалась. Проверьте, что сервер запущен, и нажмите ещё раз.</span>';
+      } else {
+        $('bridgeStatus').innerHTML = '<span class="bad">Ошибка: ' + ((resp && resp.error) || 'неизвестная') + '</span>';
+      }
+    })();
+  }
   else if (t.id === 'btnPause') control('pause');
   else if (t.id === 'btnResume') control('resume');
   else if (t.id === 'btnRescan') control('rescan');
