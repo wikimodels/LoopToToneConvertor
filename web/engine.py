@@ -1025,15 +1025,18 @@ class Engine:
                 self._process(name)
             except InterruptedError:
                 with self.lock:
-                    self.state["files"][name]["status"] = "pending"
+                    f = self.state["files"].get(name)
+                    if f is not None:
+                        f["status"] = "pending"
                 return
             except Exception as exc:
                 tb = traceback.format_exc()
                 with self.lock:
-                    f = self.state["files"][name]
-                    f["step"] = ""
-                    f["status"] = "failed"
-                    f["error"] = str(exc)
+                    f = self.state["files"].get(name)
+                    if f is not None:
+                        f["step"] = ""
+                        f["status"] = "failed"
+                        f["error"] = str(exc)
                 self.log("error", f"[{name}] FAILED: {exc}\n{tb}")
             self.save_state()
 
@@ -1082,9 +1085,12 @@ class Engine:
         with self.lock:
             self.state["running"] = False
             self.state["paused"] = True
-            if not self.pending_names():
-                self.state["finished_at"] = time.time()
-        self.log("info", "Stopped")
+            self.state["started_at"] = None
+            self.state["finished_at"] = time.time()
+            self.state["files"] = {}
+            self.state["order"] = []
+        self.log("info", "Stopped — state cleared, rescanning source for a clean start")
+        self.scan_source()
 
     # ------------------------------------------------------------------ state view
 
