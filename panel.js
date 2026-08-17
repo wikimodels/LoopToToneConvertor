@@ -277,24 +277,32 @@ document.addEventListener('click', (e) => {
     (async () => {
       const btn = t;
       btn.disabled = true;
-      btn.textContent = 'слушаю… (до 75с)';
-      $('bridgeStatus').classList.remove('hidden');
-      $('bridgeStatus').innerHTML = 'Перезагружаю вкладку chordmini.me и ловлю заголовок x-firebase-appcheck… (до 75с)';
-      let resp;
+      btn.textContent = 'жду токен… (до 60с)';
+      const box = $('bridgeStatus');
+      box.classList.remove('hidden');
+      box.innerHTML = 'Перезагружаю вкладку chordmini.me. Перехватчик теперь работает постоянно — токен доставится автоматически при первом запросе сайта к Firebase…';
       try {
-        resp = await chrome.runtime.sendMessage({ type: 'get-appcheck-token' });
-      } catch (e) {
-        resp = { ok: false, error: String(e && e.message || e) };
+        await chrome.runtime.sendMessage({ type: 'get-appcheck-token' });
+      } catch (e) { /* ignore: reload request failed */ }
+      const deadline = Date.now() + 60000;
+      let got = false;
+      while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 1500));
+        try {
+          const st = await api('/api/appcheck-token');
+          if (st && st.present) {
+            got = true;
+            break;
+          }
+        } catch (e) { /* engine down */ }
       }
       btn.disabled = false;
       btn.textContent = 'Получить токен';
-      if (resp && resp.ok && resp.delivered) {
-        $('bridgeStatus').innerHTML = '<span class="ok">Токен получен и доставлен движку ✓ Можно запускать обработку</span>';
+      if (got) {
+        box.innerHTML = '<span class="ok">Токен получен и доставлен движку ✓ Можно запускать обработку</span>';
         refresh();
-      } else if (resp && resp.ok && !resp.delivered) {
-        $('bridgeStatus').innerHTML = '<span class="bad">Токен получен, но доставка на движок не удалась. Проверьте, что сервер запущен, и нажмите ещё раз.</span>';
       } else {
-        $('bridgeStatus').innerHTML = '<span class="bad">Ошибка: ' + ((resp && resp.error) || 'неизвестная') + '</span>';
+        box.innerHTML = '<span class="bad">Токен ещё не пойман. Обновите вкладку chordmini.me или подождите — перехватчик активен постоянно, токен доставится сам при первом запросе к Firebase (если движок запущен).</span>';
       }
     })();
   }

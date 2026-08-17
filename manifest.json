@@ -3,9 +3,12 @@
   "name": "LoopToToneConvertor",
   "version": "1.1.0",
   "description": "Управление LoopToToneConvertor: биты/аккорды/тональность, JSON+MIDI, прогресс. Ловит App Check токен на chordmini.me и передаёт движку.",
-  "permissions": ["storage", "sidePanel", "tabs", "debugger"],
+  "permissions": ["storage", "sidePanel", "tabs", "webRequest"],
   "host_permissions": [
     "https://chordmini.me/*",
+    "https://identitytoolkit.googleapis.com/*",
+    "https://firestore.googleapis.com/*",
+    "https://firebasestorage.googleapis.com/*",
     "http://127.0.0.1:8002/*"
   ],
   "background": {

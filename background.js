@@ -101,15 +101,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
   }
   if (msg && msg.type === "get-appcheck-token") {
-    grabAppCheckToken()
-      .then(async (res) => {
-        if (res.ok && res.token) {
-          const delivered = await deliver(res.token);
-          sendResponse({ ok: true, delivered, token_len: res.token.length });
-        } else {
-          sendResponse(res);
-        }
-      })
+    refreshChordminiTab()
+      .then((res) => sendResponse(res))
       .catch((e) => sendResponse({ ok: false, error: String(e && e.message || e) }));
     return true;
   }
@@ -169,100 +162,49 @@ chrome.runtime.onInstalled.addListener(() => {
   }
 });
 
-function grabAppCheckToken() {
-  const TIMEOUT = 75000;
-  return (async () => {
-    let tabs = [];
+chrome.webRequest.onBeforeSendHeaders.addListener(
+  (details) => {
     try {
-      tabs = await chrome.tabs.query({ url: ["https://chordmini.me/*"] });
-    } catch (e) {
-      tabs = [];
-    }
-    const existing = tabs.find((t) => !t.incognito);
-    let tab = existing;
-    if (!tab) {
-      tab = await chrome.tabs.create({ url: "https://chordmini.me/" });
-    } else {
-      try {
-        await chrome.tabs.update(tab.id, { active: true });
-      } catch (e) { /* ignore */ }
-    }
-
-    let attached = false;
-    try {
-      await new Promise((resolve, reject) => {
-        chrome.debugger.attach({ tabId: tab.id }, "1.3", () => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-          } else {
-            attached = true;
-            resolve();
-          }
-        });
-      });
-    } catch (e) {
-      return { ok: false, error: "debugger: " + (e && e.message || e) };
-    }
-
-    return await new Promise((resolve) => {
-      let done = false;
-      const finish = (res) => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        if (attached) {
-          try {
-            chrome.debugger.onEvent.removeListener(onEvent);
-            chrome.debugger.detach({ tabId: tab.id });
-          } catch (e) { /* ignore */ }
-        }
-        resolve(res);
-      };
-      const timer = setTimeout(() => {
-        finish({ ok: false, error: "Обмен токеном не замечен за 75 секунд. " +
-          "Перезагрузите вкладку chordmini.me и нажмите кнопку ещё раз." });
-      }, TIMEOUT);
-
-      const onEvent = (src, method, params) => {
-        if (src.tabId !== tab.id) return;
-        if (method === "Network.requestWillBeSent") {
-          const headers = (params && params.request && params.request.headers) || {};
-          for (const key of Object.keys(headers)) {
-            if (key.toLowerCase() === "x-firebase-appcheck") {
-              const token = headers[key];
-              if (typeof token === "string" && token.length > 80) {
-                finish({ ok: true, token });
-                return;
-              }
-            }
+      const hdrs = details.requestHeaders || [];
+      for (const h of hdrs) {
+        if (h && h.name && h.name.toLowerCase() === "x-firebase-appcheck") {
+          if (typeof h.value === "string" && h.value.length > 80) {
+            deliver(h.value);
+            break;
           }
         }
-        if (method === "Network.responseReceived") {
-          const url = (params && params.response && params.response.url) || "";
-          if (!/exchangeRecaptcha/i.test(url)) return;
-          chrome.debugger.sendCommand(
-            { tabId: tab.id },
-            "Network.getResponseBody",
-            { requestId: params.requestId },
-            (res) => {
-              if (res && res.body) {
-                try {
-                  const data = JSON.parse(res.body);
-                  const token = (data && data.appCheckToken && data.appCheckToken.token) ||
-                    (data && data.token);
-                  if (typeof token === "string" && token.length > 80) {
-                    finish({ ok: true, token });
-                  }
-                } catch (e) { /* not JSON */ }
-              }
-            }
-          );
-        }
-      };
-      chrome.debugger.onEvent.addListener(onEvent);
-      try {
-        chrome.tabs.reload(tab.id);
-      } catch (e) { /* ignore */ }
-    });
-  })();
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  },
+  {
+    urls: [
+      "https://chordmini.me/*",
+      "https://identitytoolkit.googleapis.com/*",
+      "https://firestore.googleapis.com/*",
+      "https://firebasestorage.googleapis.com/*",
+    ],
+  },
+  ["requestHeaders"]
+);
+
+async function refreshChordminiTab() {
+  let tabs = [];
+  try {
+    tabs = await chrome.tabs.query({ url: ["https://chordmini.me/*"] });
+  } catch (e) {
+    tabs = [];
+  }
+  const existing = tabs.find((t) => !t.incognito);
+  let tab = existing;
+  if (!tab) {
+    tab = await chrome.tabs.create({ url: "https://chordmini.me/" });
+  } else {
+    try {
+      await chrome.tabs.update(tab.id, { active: true });
+      chrome.tabs.reload(tab.id);
+    } catch (e) { /* ignore */ }
+  }
+  return { ok: true, tab_id: tab.id };
 }
