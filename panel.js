@@ -279,7 +279,7 @@ document.addEventListener('click', (e) => {
       btn.disabled = true;
       btn.textContent = 'слушаю… (до 75с)';
       $('bridgeStatus').classList.remove('hidden');
-      $('bridgeStatus').innerHTML = 'Жду обмен App Check на chordmini.me… (перезагрузите вкладку, если долго)';
+      $('bridgeStatus').innerHTML = 'Перезагружаю вкладку chordmini.me и ловлю заголовок x-firebase-appcheck… (до 75с)';
       let resp;
       try {
         resp = await chrome.runtime.sendMessage({ type: 'get-appcheck-token' });

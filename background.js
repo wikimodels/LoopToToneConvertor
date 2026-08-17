@@ -225,6 +225,18 @@ function grabAppCheckToken() {
 
       const onEvent = (src, method, params) => {
         if (src.tabId !== tab.id) return;
+        if (method === "Network.requestWillBeSent") {
+          const headers = (params && params.request && params.request.headers) || {};
+          for (const key of Object.keys(headers)) {
+            if (key.toLowerCase() === "x-firebase-appcheck") {
+              const token = headers[key];
+              if (typeof token === "string" && token.length > 80) {
+                finish({ ok: true, token });
+                return;
+              }
+            }
+          }
+        }
         if (method === "Network.responseReceived") {
           const url = (params && params.response && params.response.url) || "";
           if (!/exchangeRecaptcha/i.test(url)) return;
@@ -248,6 +260,9 @@ function grabAppCheckToken() {
         }
       };
       chrome.debugger.onEvent.addListener(onEvent);
+      try {
+        chrome.tabs.reload(tab.id);
+      } catch (e) { /* ignore */ }
     });
   })();
 }
