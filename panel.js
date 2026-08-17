@@ -171,6 +171,7 @@ function fillSettings() {
   const c = state.config;
   if (document.activeElement !== $('setSource')) $('setSource').value = c.source;
   if (document.activeElement !== $('setOutput')) $('setOutput').value = c.output;
+  if (document.activeElement !== $('setMidiDir')) $('setMidiDir').value = c.midi_dir || '';
   $('setApi').value = c.api_base;
   $('setBeatModel').value = c.beat_model;
   $('setChordModel').value = c.chord_model;
@@ -242,6 +243,7 @@ async function saveSettings() {
   const body = {
     source: $('setSource').value.trim(),
     output: $('setOutput').value.trim(),
+    midi_dir: $('setMidiDir').value.trim(),
     api_base: $('setApi').value.trim(),
     beat_model: $('setBeatModel').value,
     chord_model: $('setChordModel').value,

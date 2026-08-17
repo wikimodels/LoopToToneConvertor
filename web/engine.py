@@ -32,8 +32,9 @@ APPCHECK_EXCHANGE = ("https://content-firebaseappcheck.googleapis.com/v1/project
                      ":exchangeRecaptchaV3Token")
 
 DEFAULT_CONFIG = {
-    "source": r"C:\Users\Vitali\Downloads\TrimmedAudio",
-    "output": r"D:\Music\ToneJs",
+    "source": r"C:\Users\Vitali\Downloads\AIMusicTools\TrimmedAudio",
+    "output": r"C:\Users\Vitali\Downloads\AIMusicTools\LoopConvertorJSON",
+    "midi_dir": r"C:\Users\Vitali\Downloads\AIMusicTools\LoopConvertorMIDI",
     "api_base": "https://chordmini.me",
     "beat_model": "madmom",
     "chord_model": "chord-cnn-lstm",
@@ -871,8 +872,7 @@ class Engine:
         )}]
         out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
-        midi_dir = out / "midi"
-        midi_dir.mkdir(parents=True, exist_ok=True)
+        midi_dir = self._midi_dir()
         midi_name = f"{tone['name']}.mid"
         midi_path = midi_dir / midi_name
         self._write_midi(tone, midi_path)
@@ -905,6 +905,12 @@ class Engine:
         out = Path(self.config["output"])
         out.mkdir(parents=True, exist_ok=True)
         return out
+
+    def _midi_dir(self) -> Path:
+        raw = self.config.get("midi_dir") or str(Path(self.config["output"]) / "midi")
+        d = Path(raw)
+        d.mkdir(parents=True, exist_ok=True)
+        return d
 
     def run_worker(self) -> None:
         while True:
