@@ -803,9 +803,15 @@ class Engine:
         chords = analysis["chords"]
         notes: list[dict] = []
         merged = []
+
+        def snap(x: int) -> int:
+            return int(round(x / 4)) * 4
+
         for c in chords:
-            start = round(c["start"] * sps)
-            end = max(start + 1, round(c["end"] * sps))
+            raw_start = round(c["start"] * sps)
+            raw_end = max(raw_start + 1, round(c["end"] * sps))
+            start = snap(raw_start)
+            end = max(start + 4, snap(raw_end))
             if merged and merged[-1]["chord"] == c["chord"] and merged[-1]["end"] == start:
                 merged[-1]["end"] = end
             else:
