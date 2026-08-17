@@ -261,6 +261,18 @@ class Engine:
                     f["attempts"] = 0
         self.log("info", "Failed files requeued")
 
+    def reset_state(self) -> None:
+        with self.lock:
+            self.state["files"] = {}
+            self.state["order"] = []
+            self.state["running"] = False
+            self.state["paused"] = True
+            self.state["started_at"] = None
+            self.state["finished_at"] = None
+            self.state["log"] = []
+        self.log("info", "State cleared, rescanning source")
+        self.scan_source()
+
     # ------------------------------------------------------------------ api
 
     def _api_interval_ok(self) -> bool:

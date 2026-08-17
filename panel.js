@@ -275,6 +275,11 @@ document.addEventListener('click', (e) => {
   else if (t.id === 'btnResume') control('resume');
   else if (t.id === 'btnRescan') control('rescan');
   else if (t.id === 'btnRetry') control('retry-failed');
+  else if (t.id === 'btnReset') {
+    $('logBox').innerHTML = '';
+    lastLogSeq = 0;
+    control('reset');
+  }
   else if (t.id === 'btnOpenOut') api('/api/open-output').catch(() => {});
   else if (t.id === 'btnOpenMidi') api('/api/open-midi').catch(() => {});
   else if (t.id === 'btnOpenSrc') api('/api/open-source').catch(() => {});

@@ -123,6 +123,10 @@ class Handler(BaseHTTPRequestHandler):
                 ENGINE.requeue_failed()
                 ENGINE.save_state()
                 return self._send_json({"ok": True})
+            if action == "reset":
+                ENGINE.reset_state()
+                ENGINE.save_state()
+                return self._send_json({"ok": True})
             if action == "check-api":
                 return self._send_json({"ok": ENGINE.check_api(force=True)})
             return self._send_json({"ok": False, "error": "unknown action"}, 400)
@@ -229,7 +233,9 @@ def main():
     args = ap.parse_args()
     ENGINE.log("info", f"LoopToToneConvertor starting on http://localhost:{args.port}")
     ENGINE.log("info", f"source={ENGINE.config['source']} output={ENGINE.config['output']}")
-    ENGINE.scan_source()
+    ENGINE.log("info", "clean start: dropping previous run state")
+    ENGINE.reset_state()
+    ENGINE.save_state()
     if ENGINE.config.get("autostart"):
         ENGINE.start()
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
