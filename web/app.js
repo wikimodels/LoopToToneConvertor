@@ -1,7 +1,6 @@
 const $ = (id) => document.getElementById(id);
 
 let state = null;
-let filter = 'all';
 let lastLogSeq = 0;
 
 const STATUS_LABEL = {
@@ -129,7 +128,7 @@ const STATUSHINT = { pending: '', working: 'работаем…', done: 'гот�
 
 function renderFiles() {
   const tbody = $('filesTable').querySelector('tbody');
-  const files = state.files.filter(f => filter === 'all' || f.status === filter || (filter === 'done' && f.status === 'done'));
+  const files = state.files;
   tbody.innerHTML = '';
   $('filesEmpty').style.display = state.files.length ? 'none' : 'block';
   for (const f of files) {
@@ -220,12 +219,7 @@ document.addEventListener('click', (e) => {
   else if (t.id === 'btnOpenSrc') api('/api/open-source').catch(() => {});
   else if (t.id === 'btnSaveSettings') saveSettings();
   else if (t.id === 'btnClearLog') { $('logBox').innerHTML = ''; lastLogSeq = 0; }
-  else if (t.dataset.f) {
-    document.querySelectorAll('.filters button').forEach(b => b.classList.remove('on'));
-    t.classList.add('on');
-    filter = t.dataset.f;
-    renderFiles();
-  } else if (t.dataset.dl) {
+  else if (t.dataset.dl) {
     const a = document.createElement('a');
     a.href = '/api/file/' + encodeURIComponent(t.dataset.dl);
     a.download = t.dataset.dl;
